@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #1f2937;
+  background: #ebe5d8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(231, 180, 78, 0.22), transparent 22rem),
+    radial-gradient(circle at top right, rgba(88, 84, 76, 0.2), transparent 20rem),
+    linear-gradient(180deg, #efe7d7 0%, #d8d4ca 48%, #f4efe6 100%);
+  color: #1f2937;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+@layer components {
+  .page-shell {
+    @apply mx-auto min-h-screen w-full max-w-[430px] px-4 pb-24 pt-4;
+  }
+
+  .panel {
+    @apply rounded-[18px] border border-white/70 bg-white/90 shadow-[0_14px_34px_rgba(62,57,48,0.12)] backdrop-blur;
+  }
+
+  .primary-button {
+    @apply inline-flex min-h-11 items-center justify-center rounded-full bg-rock-gold px-4 py-2 text-sm font-black text-slate-900 shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300;
+  }
+
+  .secondary-button {
+    @apply inline-flex min-h-11 items-center justify-center rounded-full border border-rock-gold/45 bg-white/90 px-4 py-2 text-sm font-black text-slate-800 transition active:scale-[0.99];
+  }
+
+  .gold-button {
+    @apply inline-flex min-h-11 items-center justify-center rounded-full bg-rock-gold px-4 py-2 text-sm font-black text-slate-900 shadow-sm transition active:scale-[0.99] disabled:cursor-not-allowed disabled:bg-slate-300;
+  }
+
+  .field {
+    @apply h-12 w-full rounded-[12px] border border-stone-200 bg-white/95 px-3 text-base outline-none transition placeholder:text-slate-400 focus:border-rock-gold focus:ring-4 focus:ring-rock-gold/20;
+  }
+
+  .image-placeholder {
+    @apply grid place-items-center rounded-[16px] bg-gradient-to-br from-stone-200 via-amber-50 to-white text-center text-xs font-black text-amber-700;
+  }
+}
