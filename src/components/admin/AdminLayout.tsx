@@ -40,6 +40,8 @@ const quickTabs: Array<{ label: string; href: string; permission: string }> = [
   { label: "菜单管理", href: "/admin/permissions/menus", permission: "permissions.menus.manage" },
   { label: "基础设置", href: "/admin/settings/basic", permission: "settings.view" },
   { label: "反馈列表", href: "/admin/feedback", permission: "feedback.feedback.view" },
+  { label: "订单投诉", href: "/admin/disputes", permission: "feedback.complaints.view" },
+  { label: "评价管理", href: "/admin/feedback/reviews", permission: "feedback.reviews.view" },
 ];
 
 export function AdminLayout({ title, children }: { title: string; children: ReactNode }) {

@@ -54,7 +54,7 @@
 7. 公告：管理端发布后，顾客端和接单员端按 visibleTo 同步。
 8. 设置：管理端保存后，顾客端和接单员端读取同一设置。
 9. 权限：管理端菜单、路由、按钮、危险操作都受权限控制。
-10. 反馈/投诉/评价：订单状态、评价、纠纷处理需要在三端相关页面同步。
+10. 反馈/投诉/售后/评价：已统一进入 `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews`，订单状态、评价、纠纷处理需要在三端相关页面同步。
 
 ## 5. 订单与财务规则
 
@@ -64,8 +64,8 @@
 4. 接单员接单：订单 accepted，写 workerId/workerName，聊天 session active。
 5. 接单员完成：订单 worker_completed。
 6. 顾客确认：订单 settled，释放冻结，增加消费，更新会员等级，增加接单员收益，写流水。
-7. 顾客确认结单需要五星评价，不需要文字评论。
-8. 顾客有疑问：订单 disputed，等待管理端处理。
+7. 顾客确认结单需要五星评价，可附带简单文字评论和匿名状态，评价写入 `order_reviews`。
+8. 顾客有疑问或投诉：订单可打 `complaintFlag` 并进入 `order_complaints`，必要时订单状态显示 `disputed`，等待管理端处理。
 9. 管理员结单/退款/关闭/恢复必须更新 orders、wallet、chat_messages、admin_logs。
 10. 平台抽成使用统一 `platformCommissionRate`，不再使用手游端/PC端两套抽成 UI。
 11. 商品固定接单员收益优先；否则用接单员抽成；否则用系统默认抽成。
@@ -106,14 +106,32 @@
 6. 管理端会员等级页面保存后必须影响顾客端等级展示和下单折扣，保存时写入 `admin_logs` 并触发 `xiaoluoke_store_updated`。
 7. 本轮会员等级修改后 `npm run build` 已通过。
 
-## 9. 下一轮优先项
+## 9. 投诉 / 反馈 / 售后 / 评价规则
 
-1. 投诉 / 反馈 / 售后 / 评价闭环尚未修复。
-2. 下一轮建议优先修复投诉 / 反馈 / 售后 / 评价闭环。
-3. 修复前先确认是否需要新增共享数据结构，避免写散乱假数据。
-4. 不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+1. 投诉 / 反馈 / 售后 / 评价闭环已完成，统一持久化在主 store key `xiaoluoke_customer_mvp_store` 内。
+2. `feedback_tickets` 用于普通反馈、疑问咨询、功能建议。
+3. `order_complaints` 用于订单投诉和订单疑问，必须关联 `orderId`、`customerId`、`workerId`。
+4. `aftersale_orders` 用于售后申请，必须关联 `orderId`、`customerId`、`workerId`、`refundAmount`、`reason`、`status`。
+5. `order_reviews` 用于订单评价，必须关联 `orderId`、`customerId`、`workerId`、`rating`、`content`、`isAnonymous`、`status`。
+6. 订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`，只做轻量联动，不大改待支付、待接单、服务中、待确认、已完成、已取消流程。
+7. 接单员已增加 `ratingAvg`、`reviewCount`，接单员评分展示可读取 `order_reviews`。
+8. 顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价。
+9. 接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态。
+10. 管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。
+11. 管理端处理动作必须继续写入 `admin_logs`。
+12. 所有新增和处理动作必须继续触发 `xiaoluoke_store_updated`。
+13. 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位，不要在联动检查中顺手接真实服务。
 
-## 10. 文案与 UI 规则
+## 10. 下一轮优先项
+
+1. 设置模块统一数据源已完成。
+2. 会员等级配置并入 shared store 已完成。
+3. 投诉 / 反馈 / 售后 / 评价闭环已完成。
+4. 下一轮建议做“三端整体联动检查与修复”，不要直接开发新大功能。
+5. 联动检查重点：商品、分类、订单、聊天、钱包、接单员、公告、权限、设置、反馈/投诉/售后/评价的跨端同步、统计口径、按钮有效性和占位残留。
+6. 不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+
+## 11. 文案与 UI 规则
 
 1. 后台可以参考第三方截图的信息架构和布局，但不能复制品牌、Logo、文案和独特视觉。
 2. 所有“打手”必须改成“接单员”。
@@ -123,7 +141,7 @@
 6. 管理端保持桌面后台风格。
 7. 不要为了 UI 改动破坏业务流程。
 
-## 11. Git 与部署规则
+## 12. Git 与部署规则
 
 1. 没有用户明确要求，不要自动提交、推送或部署。
 2. 不要删除用户已有文件。

@@ -53,7 +53,7 @@ export default function AdminDashboardPage() {
     { label: "有疑问订单", count: store.orders.filter((order) => order.status === "disputed").length, href: "/admin/disputes", tone: "rose" as const },
     { label: "待处理提现", count: store.withdraw_requests.filter((item) => item.status === "pending").length, href: "/admin/withdrawals", tone: "blue" as const },
     { label: "保证金退还申请", count: store.workers.filter((worker) => worker.depositStatus === "refund_pending").length, href: "/admin/workers", tone: "amber" as const },
-    { label: "反馈/投诉", count: store.orders.filter((order) => order.status === "after_sale").length, href: "/admin/feedback", tone: "slate" as const },
+    { label: "反馈/投诉", count: store.feedback_tickets.length + store.order_complaints.length + store.aftersale_orders.length, href: "/admin/feedback", tone: "slate" as const },
   ];
 
   const chartRows = buildChartRows(scopedOrders, chartMetric);

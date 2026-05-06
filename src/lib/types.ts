@@ -91,6 +91,13 @@ export type ChatSenderRole = "customer" | "worker" | "system";
 
 export type ChatMessageType = "text" | "image" | "system";
 
+export type SupportTicketStatus = "pending" | "processing" | "resolved" | "closed" | "rejected";
+export type SupportPriority = "low" | "normal" | "high" | "urgent";
+export type FeedbackTicketType = "feedback" | "question" | "suggestion";
+export type OrderComplaintType = "complaint" | "question";
+export type AfterSaleType = "refund" | "redo" | "other";
+export type OrderReviewStatus = "visible" | "hidden" | "pending" | "closed";
+
 export interface User {
   id: string;
   openid?: string;
@@ -178,6 +185,8 @@ export interface Worker {
   intro: string;
   completedOrderCount: number;
   rating: number;
+  ratingAvg?: number;
+  reviewCount?: number;
   dynamicText: string;
   availableBalance: number;
   totalEarned: number;
@@ -256,6 +265,9 @@ export interface Order {
   statusHistory?: OrderStatusHistory[];
   customerRating?: number;
   ratedAt?: string;
+  complaintFlag?: boolean;
+  aftersaleFlag?: boolean;
+  reviewId?: string;
 }
 
 export interface OrderStatusHistory {
@@ -409,6 +421,89 @@ export interface ChatMessage {
   imageUrl?: string;
   createdAt: string;
   isRead: boolean;
+}
+
+export interface FeedbackTicket {
+  id: string;
+  type: FeedbackTicketType;
+  title: string;
+  content: string;
+  status: SupportTicketStatus;
+  priority: SupportPriority;
+  customerId: string;
+  customerName?: string;
+  workerId?: string | null;
+  workerName?: string | null;
+  orderId?: string | null;
+  orderNo?: string | null;
+  images?: string[];
+  adminReply?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+}
+
+export interface OrderComplaint {
+  id: string;
+  type: OrderComplaintType;
+  title: string;
+  content: string;
+  status: SupportTicketStatus;
+  priority: SupportPriority;
+  customerId: string;
+  customerName?: string;
+  workerId: string;
+  workerName?: string;
+  orderId: string;
+  orderNo?: string;
+  images?: string[];
+  adminReply?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+}
+
+export interface AfterSaleOrder {
+  id: string;
+  type: AfterSaleType;
+  title: string;
+  reason: string;
+  status: SupportTicketStatus;
+  priority: SupportPriority;
+  customerId: string;
+  customerName?: string;
+  workerId: string;
+  workerName?: string;
+  orderId: string;
+  orderNo?: string;
+  refundAmount: number;
+  images?: string[];
+  adminReply?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+}
+
+export interface OrderReview {
+  id: string;
+  type: "order_review";
+  title: string;
+  content: string;
+  status: OrderReviewStatus;
+  priority: SupportPriority;
+  customerId: string;
+  customerName?: string;
+  workerId: string;
+  workerName?: string;
+  orderId: string;
+  orderNo?: string;
+  rating: number;
+  isAnonymous: boolean;
+  images?: string[];
+  adminReply?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
 }
 
 export interface AdminLog {
@@ -638,6 +733,10 @@ export interface StoreShape {
   deposit_refunds: DepositRefundRequest[];
   chat_sessions: ChatSession[];
   chat_messages: ChatMessage[];
+  feedback_tickets: FeedbackTicket[];
+  order_complaints: OrderComplaint[];
+  aftersale_orders: AfterSaleOrder[];
+  order_reviews: OrderReview[];
   admin_roles: AdminRole[];
   admin_users: AdminUser[];
   admin_menus: AdminMenu[];

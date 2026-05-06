@@ -22,7 +22,7 @@ const tabs: Array<{ key: TabKey; label: string; statuses?: OrderStatus[] }> = [
   { key: "worker_completed", label: "待结单", statuses: ["worker_completed"] },
   { key: "settled", label: "已完成", statuses: ["settled", "paid"] },
   { key: "disputed", label: "有疑问", statuses: ["disputed"] },
-  { key: "after_sale", label: "售后", statuses: ["refunded", "after_sale"] },
+  { key: "after_sale", label: "售后", statuses: ["refunded", "after_sale", "after_sale_refunded"] },
 ];
 
 export default function OrdersPage() {

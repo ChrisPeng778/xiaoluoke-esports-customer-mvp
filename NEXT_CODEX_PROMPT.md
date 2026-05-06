@@ -8,7 +8,7 @@
 2. 接单员端 Worker：mock 登录、在线/离线、抢单/接单、订单详情、聊天、完成订单、个人资料、头像/昵称/说明、钱包/提现/保证金相关。
 3. 管理端 Admin Dashboard：电脑后台布局，作为数据中枢，管理统计、用户、商品、订单、接单员、财务、公告、权限、设置、反馈/纠纷。
 
-核心原则：三端必须共用同一套 shared store/localStorage，不允许给顾客端、接单员端、管理端各写一套假数据。主 store key 是 `xiaoluoke_customer_mvp_store`，由 `src/lib/store.ts` 读写，结构在 `src/lib/types.ts` 的 `StoreShape`。当前 store 包含 `users`、`products`、`product_categories`、`workers`、`announcements`、`orders`、`wallet_accounts`、`wallet_ledger`、`recharge_orders`、`recharge_packages`、`withdraw_requests`、`deposit_refunds`、`chat_sessions`、`chat_messages`、`admin_roles`、`admin_users`、`admin_menus`、`admin_logs`、`system_settings`、`member_level_settings`。session key 包括顾客、接单员、管理员 session 和公告已读 key。
+核心原则：三端必须共用同一套 shared store/localStorage，不允许给顾客端、接单员端、管理端各写一套假数据。主 store key 是 `xiaoluoke_customer_mvp_store`，由 `src/lib/store.ts` 读写，结构在 `src/lib/types.ts` 的 `StoreShape`。当前 store 包含 `users`、`products`、`product_categories`、`workers`、`announcements`、`orders`、`wallet_accounts`、`wallet_ledger`、`recharge_orders`、`recharge_packages`、`withdraw_requests`、`deposit_refunds`、`chat_sessions`、`chat_messages`、`admin_roles`、`admin_users`、`admin_menus`、`admin_logs`、`system_settings`、`member_level_settings`、`feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews`。session key 包括顾客、接单员、管理员 session 和公告已读 key。
 
 绝对不要做：不接 MongoDB，不接真实微信支付/支付宝支付，不接真实短信，不接真实 COS/OSS 上传，不接真实企业微信 API，不接真实公众号 H5 授权，不接真实接单员小程序提现，不改成微信小程序，不写 `wx.login`。所有“打手”文案必须改成“接单员”。不要恢复“分销、应用、装修、广告投放、裂变、邀请返佣、推广海报”等无关模块。
 
@@ -30,5 +30,8 @@
 12. 权限是 localStorage MVP。默认 admin/0000，超级管理员不能被删除或禁用。已有 `hasPermission`、`requirePermission`、`canAccessAdminPath` 等，需要核对是否真的控制菜单、页面、按钮和危险操作。
 13. 设置模块统一数据源已完成：`system_settings` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`，包含 basic、tip、customerService、sms、notification、agreements、worker、payment、order、businessTarget、finance、resources。不要新增独立写入的 `xiaoluoke_system_settings` key；若代码中保留该名称，只能作为旧数据读取/迁移兼容。顾客端已读取基础设置、客服、协议、打赏、支付方式、下单必看；接单员端已读取基础设置、客服、接单员协议、保证金规则、最低保证金、财务提现规则。企业微信客服、公众号 H5、微信支付、提现、短信、资源上传都只是预留接口，没有接真实服务。
 14. 会员等级配置并入 shared store 已完成：管理端保存写入 `admin_logs` 并触发 `xiaoluoke_store_updated`，本轮 `npm run build` 已通过。
+15. 投诉 / 反馈 / 售后 / 评价闭环已完成：`feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入主 store；订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作写入 `admin_logs`，所有新增和处理动作触发 `xiaoluoke_store_updated`。真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位。
 
-下一步优先事项：不要一口气做大模块。先跑 `npm run build`。设置模块统一数据源已完成，会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环尚未修复。下一轮建议优先修复投诉 / 反馈 / 售后 / 评价闭环，先确认是否需要新增共享数据结构，避免写散乱假数据。所有修改必须保留顾客端和接单员端现有流程，不新增重复数据源，不写三套假数据，改完必须 `npm run build`。
+当前三个优先模块状态：设置模块统一数据源已完成；会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环已完成。最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
+
+下一轮建议事项：不要直接开发新大功能，建议做“三端整体联动检查与修复”。重点核对顾客端、接单员端、管理端在商品、订单、钱包、聊天、公告、权限、设置、反馈/投诉/售后/评价之间是否仍有不同步、占位提示、按钮无效或统计口径不一致。不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。

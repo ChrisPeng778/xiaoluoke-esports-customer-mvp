@@ -12,16 +12,21 @@ import type {
   AnnouncementStatus,
   AnnouncementType,
   AnnouncementVisibleTo,
+  AfterSaleOrder,
   ChatMessage,
   ChatMessageType,
   ChatSession,
   CustomerSession,
   DepositRefundRequest,
+  FeedbackTicket,
   LedgerDirection,
   LedgerType,
   MemberLevel,
   MemberLevelSetting,
   Order,
+  OrderComplaint,
+  OrderReview,
+  OrderReviewStatus,
   OrderStatus,
   PaymentRecord,
   PaymentRecordChannel,
@@ -33,6 +38,8 @@ import type {
   RechargePackage,
   RechargeOrder,
   ResourceRecord,
+  SupportPriority,
+  SupportTicketStatus,
   StoreShape,
   SystemSettings,
   User,
@@ -486,6 +493,8 @@ function migrateWorker(raw: Partial<Worker>, index: number): Worker {
     intro: raw.intro ?? seed.intro,
     completedOrderCount: raw.completedOrderCount ?? seed.completedOrderCount,
     rating: raw.rating ?? seed.rating,
+    ratingAvg: raw.ratingAvg,
+    reviewCount: raw.reviewCount,
     dynamicText: raw.dynamicText ?? seed.dynamicText,
     availableBalance: money(raw.availableBalance ?? seed.availableBalance ?? 0),
     totalEarned: money(raw.totalEarned ?? seed.totalEarned ?? 0),
@@ -537,6 +546,9 @@ function migrateOrder(raw: Partial<Order> & { amount?: number; userId?: string }
     statusHistory: raw.statusHistory ?? [],
     customerRating: raw.customerRating,
     ratedAt: raw.ratedAt,
+    complaintFlag: Boolean(raw.complaintFlag ?? raw.status === "disputed"),
+    aftersaleFlag: Boolean(raw.aftersaleFlag ?? raw.status === "after_sale"),
+    reviewId: raw.reviewId,
   };
 }
 
@@ -566,6 +578,117 @@ function migrateChatMessage(raw: Partial<ChatMessage>): ChatMessage {
     imageUrl: raw.imageUrl,
     createdAt: raw.createdAt ?? now(),
     isRead: raw.isRead ?? true,
+  };
+}
+
+function normalizeSupportStatus(status?: string): SupportTicketStatus {
+  return status === "processing" || status === "resolved" || status === "closed" || status === "rejected" ? status : "pending";
+}
+
+function normalizePriority(priority?: string): SupportPriority {
+  return priority === "low" || priority === "high" || priority === "urgent" ? priority : "normal";
+}
+
+function migrateFeedbackTicket(raw: Partial<FeedbackTicket>): FeedbackTicket {
+  const createdAt = raw.createdAt ?? now();
+  const type = raw.type === "question" || raw.type === "suggestion" ? raw.type : "feedback";
+  return {
+    id: raw.id ?? makeId("feedback"),
+    type,
+    title: raw.title?.trim() || (type === "question" ? "问题咨询" : type === "suggestion" ? "功能建议" : "普通反馈"),
+    content: raw.content?.trim() || "",
+    status: normalizeSupportStatus(raw.status),
+    priority: normalizePriority(raw.priority),
+    customerId: raw.customerId ?? "",
+    customerName: raw.customerName ?? "",
+    workerId: raw.workerId ?? null,
+    workerName: raw.workerName ?? null,
+    orderId: raw.orderId ?? null,
+    orderNo: raw.orderNo ?? null,
+    images: Array.isArray(raw.images) ? raw.images : [],
+    adminReply: raw.adminReply ?? "",
+    createdAt,
+    updatedAt: raw.updatedAt ?? createdAt,
+    resolvedAt: raw.resolvedAt,
+  };
+}
+
+function migrateOrderComplaint(raw: Partial<OrderComplaint>): OrderComplaint {
+  const createdAt = raw.createdAt ?? now();
+  const type = raw.type === "question" ? "question" : "complaint";
+  return {
+    id: raw.id ?? makeId("complaint"),
+    type,
+    title: raw.title?.trim() || (type === "question" ? "订单疑问" : "订单投诉"),
+    content: raw.content?.trim() || "",
+    status: normalizeSupportStatus(raw.status),
+    priority: normalizePriority(raw.priority),
+    customerId: raw.customerId ?? "",
+    customerName: raw.customerName ?? "",
+    workerId: raw.workerId ?? "",
+    workerName: raw.workerName ?? "",
+    orderId: raw.orderId ?? "",
+    orderNo: raw.orderNo ?? "",
+    images: Array.isArray(raw.images) ? raw.images : [],
+    adminReply: raw.adminReply ?? "",
+    createdAt,
+    updatedAt: raw.updatedAt ?? createdAt,
+    resolvedAt: raw.resolvedAt,
+  };
+}
+
+function migrateAfterSaleOrder(raw: Partial<AfterSaleOrder>): AfterSaleOrder {
+  const createdAt = raw.createdAt ?? now();
+  const type = raw.type === "redo" || raw.type === "other" ? raw.type : "refund";
+  return {
+    id: raw.id ?? makeId("aftersale"),
+    type,
+    title: raw.title?.trim() || "售后申请",
+    reason: raw.reason?.trim() || "",
+    status: normalizeSupportStatus(raw.status),
+    priority: normalizePriority(raw.priority),
+    customerId: raw.customerId ?? "",
+    customerName: raw.customerName ?? "",
+    workerId: raw.workerId ?? "",
+    workerName: raw.workerName ?? "",
+    orderId: raw.orderId ?? "",
+    orderNo: raw.orderNo ?? "",
+    refundAmount: money(raw.refundAmount ?? 0),
+    images: Array.isArray(raw.images) ? raw.images : [],
+    adminReply: raw.adminReply ?? "",
+    createdAt,
+    updatedAt: raw.updatedAt ?? createdAt,
+    resolvedAt: raw.resolvedAt,
+  };
+}
+
+function normalizeReviewStatus(status?: string): OrderReviewStatus {
+  return status === "hidden" || status === "pending" || status === "closed" ? status : "visible";
+}
+
+function migrateOrderReview(raw: Partial<OrderReview>): OrderReview {
+  const createdAt = raw.createdAt ?? now();
+  const rating = Math.max(1, Math.min(5, Math.round(Number(raw.rating) || 5)));
+  return {
+    id: raw.id ?? makeId("review"),
+    type: "order_review",
+    title: raw.title?.trim() || "订单评价",
+    content: raw.content?.trim() || "",
+    status: normalizeReviewStatus(raw.status),
+    priority: normalizePriority(raw.priority),
+    customerId: raw.customerId ?? "",
+    customerName: raw.customerName ?? "",
+    workerId: raw.workerId ?? "",
+    workerName: raw.workerName ?? "",
+    orderId: raw.orderId ?? "",
+    orderNo: raw.orderNo ?? "",
+    rating,
+    isAnonymous: Boolean(raw.isAnonymous),
+    images: Array.isArray(raw.images) ? raw.images : [],
+    adminReply: raw.adminReply ?? "",
+    createdAt,
+    updatedAt: raw.updatedAt ?? createdAt,
+    resolvedAt: raw.resolvedAt,
   };
 }
 
@@ -839,6 +962,23 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
     }
   });
   system_settings.resources.records = resources;
+  const orders = (parsed.orders ?? []).map(migrateOrder);
+  const order_reviews = (parsed.order_reviews ?? []).map(migrateOrderReview).filter((item) => item.orderId && item.customerId && item.workerId);
+  orders.forEach((order) => {
+    if (!order.customerRating || !order.workerId || order_reviews.some((review) => review.orderId === order.id)) return;
+    const review = buildReviewFromOrder(order, order.customerRating, "", false);
+    review.createdAt = order.ratedAt ?? order.settledAt ?? order.updatedAt;
+    review.updatedAt = review.createdAt;
+    order.reviewId = review.id;
+    order_reviews.push(review);
+  });
+  workers.forEach((worker) => {
+    const reviews = order_reviews.filter((review) => review.workerId === worker.id && review.status === "visible");
+    if (!reviews.length) return;
+    worker.ratingAvg = money(reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length);
+    worker.reviewCount = reviews.length;
+    worker.rating = Math.round((reviews.filter((review) => review.rating >= 4).length / reviews.length) * 100);
+  });
 
   return {
     users,
@@ -846,7 +986,7 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
     product_categories,
     workers,
     announcements,
-    orders: (parsed.orders ?? []).map(migrateOrder),
+    orders,
     wallet_accounts,
     wallet_ledger: (parsed.wallet_ledger ?? []).map((entry: Partial<WalletLedger> & {
       type?: LedgerType | "recharge";
@@ -894,6 +1034,10 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
     deposit_refunds: (parsed.deposit_refunds ?? []).map(migrateDepositRefundRequest),
     chat_sessions: (parsed.chat_sessions ?? []).map(migrateChatSession),
     chat_messages: (parsed.chat_messages ?? []).map(migrateChatMessage),
+    feedback_tickets: (parsed.feedback_tickets ?? []).map(migrateFeedbackTicket),
+    order_complaints: (parsed.order_complaints ?? []).map(migrateOrderComplaint).filter((item) => item.orderId && item.customerId && item.workerId),
+    aftersale_orders: (parsed.aftersale_orders ?? []).map(migrateAfterSaleOrder).filter((item) => item.orderId && item.customerId && item.workerId),
+    order_reviews,
     admin_roles,
     admin_users,
     admin_menus,
@@ -1140,6 +1284,7 @@ const ADMIN_PATH_PERMISSIONS: Array<[string, string]> = [
   ["/admin/withdrawals", "finance.withdraw.view"],
   ["/admin/wallet", "finance.ledger.view"],
   ["/admin/announcements", "announcements.view"],
+  ["/admin/feedback/reviews", "feedback.reviews.view"],
   ["/admin/disputes", "feedback.complaints.view"],
   ["/admin/feedback", "feedback.feedback.view"],
   ["/admin/permissions/admin-users", "permissions.admin_users.manage"],
@@ -1719,6 +1864,326 @@ function addAdminLog(
 export function appendAdminLog(actionType: string, targetType: string, targetId: string | undefined, detail: string) {
   updateStore((store) => {
     addAdminLog(store, actionType, targetType, targetId, detail);
+  });
+}
+
+function activeSupportStatus(status: SupportTicketStatus) {
+  return status === "pending" || status === "processing";
+}
+
+function supportResolvedAt(status: SupportTicketStatus) {
+  return activeSupportStatus(status) ? undefined : now();
+}
+
+function orderFlowStatus(order: Order): OrderStatus {
+  if (order.settledAt) return "settled";
+  if (order.submittedAt) return "worker_completed";
+  if (order.startedAt || order.assignedAt || order.workerId) return "accepted";
+  return "pending";
+}
+
+function syncOrderSupportFlags(store: StoreShape, order: Order) {
+  const hasActiveComplaint = store.order_complaints.some((item) => item.orderId === order.id && activeSupportStatus(item.status));
+  const hasActiveAfterSale = store.aftersale_orders.some((item) => item.orderId === order.id && activeSupportStatus(item.status));
+  order.complaintFlag = hasActiveComplaint;
+  order.aftersaleFlag = hasActiveAfterSale;
+  if (hasActiveAfterSale) {
+    order.status = "after_sale";
+  } else if (hasActiveComplaint) {
+    order.status = "disputed";
+  } else if (order.status === "after_sale" || order.status === "disputed") {
+    order.status = orderFlowStatus(order);
+  }
+  order.updatedAt = now();
+}
+
+function ensureOrderForCustomerSupport(store: StoreShape, orderId: string, customerId: string) {
+  const order = store.orders.find((item) => item.id === orderId && item.customerId === customerId);
+  if (!order) throw new Error("订单不存在");
+  if (order.orderType !== "service") throw new Error("打赏订单暂不支持订单投诉或售后");
+  if (!order.workerId) throw new Error("订单暂无接单员，暂不能提交订单投诉或售后");
+  return order;
+}
+
+function buildReviewFromOrder(order: Order, rating: number, content = "", isAnonymous = false): OrderReview {
+  if (!order.workerId) throw new Error("订单暂无接单员，暂不能评价");
+  const normalizedRating = Math.max(1, Math.min(5, Math.round(rating)));
+  return {
+    id: makeId("review"),
+    type: "order_review",
+    title: `订单评价：${order.productName ?? order.orderNo}`,
+    content: content.trim(),
+    status: "visible",
+    priority: "normal",
+    customerId: order.customerId,
+    customerName: isAnonymous ? "匿名用户" : order.customerName,
+    workerId: order.workerId,
+    workerName: order.workerName ?? "",
+    orderId: order.id,
+    orderNo: order.orderNo,
+    rating: normalizedRating,
+    isAnonymous,
+    images: [],
+    adminReply: "",
+    createdAt: now(),
+    updatedAt: now(),
+  };
+}
+
+function syncWorkerReviewStats(store: StoreShape, workerId: string) {
+  const worker = store.workers.find((item) => item.id === workerId);
+  if (!worker) return;
+  const reviews = store.order_reviews.filter((review) => review.workerId === workerId && review.status === "visible");
+  if (!reviews.length) return;
+  const ratingAvg = money(reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length);
+  const goodCount = reviews.filter((review) => review.rating >= 4).length;
+  worker.ratingAvg = ratingAvg;
+  worker.reviewCount = reviews.length;
+  worker.rating = Math.round((goodCount / reviews.length) * 100);
+  worker.updatedAt = now();
+}
+
+export function submitFeedbackTicket(input: {
+  type: FeedbackTicket["type"];
+  title: string;
+  content: string;
+  priority?: SupportPriority;
+  orderId?: string | null;
+  images?: string[];
+}): FeedbackTicket {
+  const session = getCurrentSession();
+  if (!session) throw new Error("请先登录");
+  const title = input.title.trim();
+  const content = input.content.trim();
+  if (!title) throw new Error("请输入标题");
+  if (!content) throw new Error("请输入内容");
+
+  return updateStore((store) => {
+    const order = input.orderId ? store.orders.find((item) => item.id === input.orderId && item.customerId === session.user.id) : undefined;
+    const ticket: FeedbackTicket = {
+      id: makeId("feedback"),
+      type: input.type,
+      title,
+      content,
+      status: "pending",
+      priority: input.priority ?? "normal",
+      customerId: session.user.id,
+      customerName: session.user.nickname,
+      workerId: order?.workerId ?? null,
+      workerName: order?.workerName ?? null,
+      orderId: order?.id ?? null,
+      orderNo: order?.orderNo ?? null,
+      images: input.images ?? [],
+      adminReply: "",
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.feedback_tickets.unshift(ticket);
+    return ticket;
+  });
+}
+
+export function submitOrderComplaint(input: {
+  type?: OrderComplaint["type"];
+  orderId: string;
+  title: string;
+  content: string;
+  priority?: SupportPriority;
+  images?: string[];
+}): OrderComplaint {
+  const session = getCurrentSession();
+  if (!session) throw new Error("请先登录");
+  const title = input.title.trim();
+  const content = input.content.trim();
+  if (!title) throw new Error("请输入标题");
+  if (!content) throw new Error("请输入投诉或疑问内容");
+
+  return updateStore((store) => {
+    const order = ensureOrderForCustomerSupport(store, input.orderId, session.user.id);
+    const complaint: OrderComplaint = {
+      id: makeId("complaint"),
+      type: input.type ?? "complaint",
+      title,
+      content,
+      status: "pending",
+      priority: input.priority ?? "high",
+      customerId: session.user.id,
+      customerName: session.user.nickname,
+      workerId: order.workerId!,
+      workerName: order.workerName ?? "",
+      orderId: order.id,
+      orderNo: order.orderNo,
+      images: input.images ?? [],
+      adminReply: "",
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.order_complaints.unshift(complaint);
+    order.statusHistory = [
+      ...(order.statusHistory ?? []),
+      makeStatusHistory("disputed", complaint.type === "question" ? "顾客提交订单疑问" : "顾客提交订单投诉", "customer", content),
+    ];
+    syncOrderSupportFlags(store, order);
+    return complaint;
+  });
+}
+
+export function submitAfterSaleOrder(input: {
+  type?: AfterSaleOrder["type"];
+  orderId: string;
+  reason: string;
+  refundAmount: number;
+  priority?: SupportPriority;
+  images?: string[];
+}): AfterSaleOrder {
+  const session = getCurrentSession();
+  if (!session) throw new Error("请先登录");
+  const reason = input.reason.trim();
+  if (!reason) throw new Error("请输入售后原因");
+
+  return updateStore((store) => {
+    const order = ensureOrderForCustomerSupport(store, input.orderId, session.user.id);
+    const refundAmount = money(Math.max(0, Math.min(Number(input.refundAmount) || 0, order.amountLockeCoin)));
+    const aftersale: AfterSaleOrder = {
+      id: makeId("aftersale"),
+      type: input.type ?? "refund",
+      title: `售后申请：${order.productName ?? order.orderNo}`,
+      reason,
+      status: "pending",
+      priority: input.priority ?? "high",
+      customerId: session.user.id,
+      customerName: session.user.nickname,
+      workerId: order.workerId!,
+      workerName: order.workerName ?? "",
+      orderId: order.id,
+      orderNo: order.orderNo,
+      refundAmount,
+      images: input.images ?? [],
+      adminReply: "",
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    store.aftersale_orders.unshift(aftersale);
+    order.statusHistory = [
+      ...(order.statusHistory ?? []),
+      makeStatusHistory("after_sale", "顾客提交售后申请", "customer", reason),
+    ];
+    syncOrderSupportFlags(store, order);
+    return aftersale;
+  });
+}
+
+export function getCurrentCustomerSupportRecords() {
+  const session = getCurrentSession();
+  if (!session) return { feedback: [] as FeedbackTicket[], complaints: [] as OrderComplaint[], aftersales: [] as AfterSaleOrder[], reviews: [] as OrderReview[] };
+  const store = readStore();
+  return {
+    feedback: store.feedback_tickets.filter((item) => item.customerId === session.user.id),
+    complaints: store.order_complaints.filter((item) => item.customerId === session.user.id),
+    aftersales: store.aftersale_orders.filter((item) => item.customerId === session.user.id),
+    reviews: store.order_reviews.filter((item) => item.customerId === session.user.id),
+  };
+}
+
+export function getOrderSupportSummary(orderId: string) {
+  const store = readStore();
+  return {
+    feedback: store.feedback_tickets.filter((item) => item.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    complaints: store.order_complaints.filter((item) => item.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    aftersales: store.aftersale_orders.filter((item) => item.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    reviews: store.order_reviews.filter((item) => item.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+  };
+}
+
+export function getCurrentWorkerSupportRecords() {
+  const session = getCurrentWorkerSession();
+  if (!session) return { complaints: [] as OrderComplaint[], aftersales: [] as AfterSaleOrder[], reviews: [] as OrderReview[] };
+  const store = readStore();
+  return {
+    complaints: store.order_complaints.filter((item) => item.workerId === session.worker.id),
+    aftersales: store.aftersale_orders.filter((item) => item.workerId === session.worker.id),
+    reviews: store.order_reviews.filter((item) => item.workerId === session.worker.id),
+  };
+}
+
+export function adminUpdateFeedbackTicket(ticketId: string, patch: { status?: SupportTicketStatus; adminReply?: string }): FeedbackTicket {
+  requirePermission("feedback.feedback.reply");
+  return updateStore((store) => {
+    const ticket = store.feedback_tickets.find((item) => item.id === ticketId);
+    if (!ticket) throw new Error("反馈不存在");
+    if (patch.status) ticket.status = patch.status;
+    if (patch.adminReply !== undefined) ticket.adminReply = patch.adminReply.trim();
+    ticket.updatedAt = now();
+    ticket.resolvedAt = patch.status ? supportResolvedAt(patch.status) : ticket.resolvedAt;
+    addAdminLog(store, "feedback_update", "feedback_ticket", ticket.id, `处理反馈：${ticket.title}`);
+    return ticket;
+  });
+}
+
+export function adminDeleteFeedbackTicket(ticketId: string): void {
+  requirePermission("feedback.feedback.reply");
+  updateStore((store) => {
+    const ticket = store.feedback_tickets.find((item) => item.id === ticketId);
+    store.feedback_tickets = store.feedback_tickets.filter((item) => item.id !== ticketId);
+    addAdminLog(store, "feedback_delete", "feedback_ticket", ticketId, `删除反馈：${ticket?.title ?? ticketId}`);
+  });
+}
+
+export function adminUpdateOrderComplaint(complaintId: string, patch: { status?: SupportTicketStatus; adminReply?: string }): OrderComplaint {
+  requirePermission("feedback.complaints.handle");
+  return updateStore((store) => {
+    const complaint = store.order_complaints.find((item) => item.id === complaintId);
+    if (!complaint) throw new Error("投诉不存在");
+    if (patch.status) complaint.status = patch.status;
+    if (patch.adminReply !== undefined) complaint.adminReply = patch.adminReply.trim();
+    complaint.updatedAt = now();
+    complaint.resolvedAt = patch.status ? supportResolvedAt(patch.status) : complaint.resolvedAt;
+    const order = store.orders.find((item) => item.id === complaint.orderId);
+    if (order) {
+      order.statusHistory = [
+        ...(order.statusHistory ?? []),
+        makeStatusHistory(order.status, `管理员处理订单投诉：${complaint.status}`, "admin", complaint.adminReply),
+      ];
+      syncOrderSupportFlags(store, order);
+    }
+    addAdminLog(store, "complaint_update", "order_complaint", complaint.id, `处理订单投诉：${complaint.orderNo ?? complaint.orderId}`);
+    return complaint;
+  });
+}
+
+export function adminUpdateAfterSaleOrder(aftersaleId: string, patch: { status?: SupportTicketStatus; adminReply?: string }): AfterSaleOrder {
+  requirePermission("feedback.complaints.handle");
+  return updateStore((store) => {
+    const aftersale = store.aftersale_orders.find((item) => item.id === aftersaleId);
+    if (!aftersale) throw new Error("售后申请不存在");
+    if (patch.status) aftersale.status = patch.status;
+    if (patch.adminReply !== undefined) aftersale.adminReply = patch.adminReply.trim();
+    aftersale.updatedAt = now();
+    aftersale.resolvedAt = patch.status ? supportResolvedAt(patch.status) : aftersale.resolvedAt;
+    const order = store.orders.find((item) => item.id === aftersale.orderId);
+    if (order) {
+      order.statusHistory = [
+        ...(order.statusHistory ?? []),
+        makeStatusHistory(order.status, `管理员处理售后：${aftersale.status}`, "admin", aftersale.adminReply),
+      ];
+      syncOrderSupportFlags(store, order);
+    }
+    addAdminLog(store, "aftersale_update", "aftersale_order", aftersale.id, `处理售后申请：${aftersale.orderNo ?? aftersale.orderId}`);
+    return aftersale;
+  });
+}
+
+export function adminUpdateOrderReview(reviewId: string, status: OrderReviewStatus): OrderReview {
+  requirePermission("feedback.reviews.handle");
+  return updateStore((store) => {
+    const review = store.order_reviews.find((item) => item.id === reviewId);
+    if (!review) throw new Error("评价不存在");
+    review.status = status;
+    review.updatedAt = now();
+    review.resolvedAt = status === "closed" ? now() : review.resolvedAt;
+    syncWorkerReviewStats(store, review.workerId);
+    addAdminLog(store, "review_update", "order_review", review.id, `${status === "hidden" ? "隐藏" : status === "visible" ? "恢复" : "处理"}评价：${review.orderNo ?? review.orderId}`);
+    return review;
   });
 }
 
@@ -2823,10 +3288,42 @@ export function simulateWorkerComplete(orderId: string): Order {
 }
 
 export function disputeOrder(orderId: string): Order {
-  return changeOrderStatus(orderId, "disputed");
+  const session = getCurrentSession();
+  if (!session) throw new Error("请先登录");
+
+  return updateStore((store) => {
+    const order = ensureOrderForCustomerSupport(store, orderId, session.user.id);
+    const existing = store.order_complaints.find((item) => item.orderId === order.id && item.type === "question" && activeSupportStatus(item.status));
+    if (!existing) {
+      store.order_complaints.unshift({
+        id: makeId("complaint"),
+        type: "question",
+        title: `订单疑问：${order.productName ?? order.orderNo}`,
+        content: "顾客在订单详情中提交了有疑问，请管理员跟进订单沟通记录。",
+        status: "pending",
+        priority: "normal",
+        customerId: session.user.id,
+        customerName: session.user.nickname,
+        workerId: order.workerId!,
+        workerName: order.workerName ?? "",
+        orderId: order.id,
+        orderNo: order.orderNo,
+        images: [],
+        adminReply: "",
+        createdAt: now(),
+        updatedAt: now(),
+      });
+    }
+    order.statusHistory = [
+      ...(order.statusHistory ?? []),
+      makeStatusHistory("disputed", "顾客提交订单疑问", "customer"),
+    ];
+    syncOrderSupportFlags(store, order);
+    return order;
+  });
 }
 
-export function settleOrder(orderId: string, customerRating = 5): Order {
+export function settleOrder(orderId: string, customerRating = 5, content = "", isAnonymous = false): Order {
   const session = getCurrentSession();
   if (!session) throw new Error("请先登录");
   const normalizedRating = Math.max(1, Math.min(5, Math.round(customerRating)));
@@ -2904,6 +3401,24 @@ export function settleOrder(orderId: string, customerRating = 5): Order {
           });
         }
       }
+    }
+
+    if (order.workerId) {
+      const existingReview = store.order_reviews.find((item) => item.orderId === order.id);
+      if (existingReview) {
+        existingReview.rating = normalizedRating;
+        existingReview.content = content.trim();
+        existingReview.isAnonymous = isAnonymous;
+        existingReview.customerName = isAnonymous ? "匿名用户" : order.customerName;
+        existingReview.status = existingReview.status === "hidden" ? "hidden" : "visible";
+        existingReview.updatedAt = now();
+        order.reviewId = existingReview.id;
+      } else {
+        const review = buildReviewFromOrder(order, normalizedRating, content, isAnonymous);
+        store.order_reviews.unshift(review);
+        order.reviewId = review.id;
+      }
+      syncWorkerReviewStats(store, order.workerId);
     }
 
     addLedger(store, {

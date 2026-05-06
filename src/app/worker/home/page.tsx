@@ -8,16 +8,20 @@ import { EmptyState } from "@/components/EmptyState";
 import { SafeImage } from "@/components/SafeImage";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useStoreSync, useWorkerSession } from "@/lib/hooks";
-import { acceptOrderAsCurrentWorker, formatRock, formatTime, getAnnouncements, getCurrentWorkerOrders, getSystemSettings, getUnreadPinnedAnnouncement, incrementAnnouncementView, markAnnouncementRead } from "@/lib/store";
+import { acceptOrderAsCurrentWorker, formatRock, formatTime, getAnnouncements, getCurrentWorkerOrders, getCurrentWorkerSupportRecords, getSystemSettings, getUnreadPinnedAnnouncement, incrementAnnouncementView, markAnnouncementRead } from "@/lib/store";
 import type { Announcement } from "@/lib/types";
 
 export default function WorkerHomePage() {
   const { session, ready, refresh } = useWorkerSession();
   const [message, setMessage] = useState("");
   const [orders, setOrders] = useState<ReturnType<typeof getCurrentWorkerOrders>>([]);
+  const [supportRecords, setSupportRecords] = useState<ReturnType<typeof getCurrentWorkerSupportRecords>>({ complaints: [], aftersales: [], reviews: [] });
   const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [autoAnnouncement, setAutoAnnouncement] = useState<Announcement | null>(null);
-  const loadOrders = useCallback(() => setOrders(getCurrentWorkerOrders()), []);
+  const loadOrders = useCallback(() => {
+    setOrders(getCurrentWorkerOrders());
+    setSupportRecords(getCurrentWorkerSupportRecords());
+  }, []);
   useStoreSync(loadOrders, ready && Boolean(session), 1500);
   const announcement = getAnnouncements("worker")[0];
   const announcementUserId = session?.worker.id ?? "guest_worker";
@@ -90,6 +94,16 @@ export default function WorkerHomePage() {
 
         {message ? <p className="rounded-[14px] bg-emerald-50 px-3 py-3 text-sm font-black text-emerald-700">{message}</p> : null}
         {depositInsufficient ? <p className="rounded-[14px] bg-amber-50 px-3 py-3 text-sm font-black text-amber-700">保证金低于 {formatRock(minimumDeposit)} 洛克贝，暂不能接单。请联系平台运营处理保证金。</p> : null}
+
+        {supportRecords.complaints.some((item) => ["pending", "processing"].includes(item.status)) || supportRecords.aftersales.some((item) => ["pending", "processing"].includes(item.status)) ? (
+          <Link href="/worker/messages" className="panel block border-rose-100 bg-rose-50 p-4">
+            <p className="text-sm font-black text-rose-700">投诉 / 售后提醒</p>
+            <p className="mt-1 text-xs font-bold text-rose-500">
+              当前有 {supportRecords.complaints.filter((item) => ["pending", "processing"].includes(item.status)).length} 条投诉、
+              {supportRecords.aftersales.filter((item) => ["pending", "processing"].includes(item.status)).length} 条售后与您相关
+            </p>
+          </Link>
+        ) : null}
 
         <SectionTitle title="待接订单" href="/worker/orders?tab=pending" />
         {pendingOrders.length ? (

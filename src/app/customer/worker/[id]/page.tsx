@@ -55,16 +55,16 @@ export default function WorkerDetailPage() {
           </p>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm font-bold text-slate-600">
             <div className="rounded-[14px] bg-amber-50 p-3">已完成 {worker.completedOrderCount}</div>
-            <div className="rounded-[14px] bg-blue-50 p-3">好评率 {worker.rating}%</div>
+            <div className="rounded-[14px] bg-blue-50 p-3">{worker.ratingAvg ? `评分 ${worker.ratingAvg.toFixed(1)} · ` : ""}好评率 {worker.rating}%</div>
           </div>
         </div>
 
         <Info title="Ta 的介绍" text={worker.intro} />
 
         <div className="grid grid-cols-3 gap-3">
-          <button className="secondary-button" onClick={() => alert("举报功能正在完善中。")}>
+          <Link href={`/customer/report?type=feedback`} className="secondary-button">
             举报
-          </button>
+          </Link>
           <button className="secondary-button" onClick={goTip}>
             打赏
           </button>

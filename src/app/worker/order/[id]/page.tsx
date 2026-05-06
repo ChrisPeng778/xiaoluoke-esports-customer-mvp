@@ -15,6 +15,7 @@ import {
   formatRock,
   formatTime,
   getCurrentWorkerOrder,
+  getOrderSupportSummary,
 } from "@/lib/store";
 import type { Order } from "@/lib/types";
 
@@ -23,9 +24,13 @@ export default function WorkerOrderDetailPage() {
   const router = useRouter();
   const { session, ready, refresh } = useWorkerSession();
   const [order, setOrder] = useState<Order | null>(null);
+  const [supportSummary, setSupportSummary] = useState<ReturnType<typeof getOrderSupportSummary>>({ feedback: [], complaints: [], aftersales: [], reviews: [] });
   const [message, setMessage] = useState("");
 
-  const loadOrder = useCallback(() => setOrder(getCurrentWorkerOrder(params.id)), [params.id]);
+  const loadOrder = useCallback(() => {
+    setOrder(getCurrentWorkerOrder(params.id));
+    setSupportSummary(getOrderSupportSummary(params.id));
+  }, [params.id]);
 
   useStoreSync(loadOrder, ready && Boolean(session), 1500);
 
@@ -76,6 +81,20 @@ export default function WorkerOrderDetailPage() {
           </div>
           <StatusBadge status={order.status} />
         </div>
+
+        {supportSummary.complaints.length || supportSummary.aftersales.length ? (
+          <div className="panel p-4">
+            <h2 className="text-lg font-black text-slate-900">投诉 / 售后状态</h2>
+            <div className="mt-3 space-y-2">
+              {supportSummary.complaints.slice(0, 3).map((item) => (
+                <SupportLine key={item.id} title={item.title} status={item.status} />
+              ))}
+              {supportSummary.aftersales.slice(0, 3).map((item) => (
+                <SupportLine key={item.id} title={item.title} status={item.status} />
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="panel p-4">
           <div className="rounded-[16px] bg-amber-100 px-3 py-4">
@@ -143,12 +162,30 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function SupportLine({ title, status }: { title: string; status: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[14px] bg-rose-50 px-3 py-2 text-sm font-bold">
+      <span className="min-w-0 truncate text-rose-800">{title}</span>
+      <span className="shrink-0 text-rose-600">{supportStatusText(status)}</span>
+    </div>
+  );
+}
+
+function supportStatusText(status: string) {
+  if (status === "processing") return "处理中";
+  if (status === "resolved") return "已解决";
+  if (status === "closed") return "已关闭";
+  if (status === "rejected") return "已拒绝";
+  return "待处理";
+}
+
 function workerStatusMessage(order: Order) {
   if (order.status === "pending") return "订单待接单，请确认需求后接单";
   if (order.status === "accepted") return "订单进行中，完成后请标记已完成";
   if (order.status === "worker_completed") return "已提交完成，等待顾客确认结单";
   if (order.status === "settled") return "订单已结单，收益已入账";
   if (order.status === "disputed") return "顾客已提交疑问，等待平台处理";
+  if (order.status === "after_sale") return "顾客已提交售后申请，等待平台处理";
   if (order.status === "refunded") return "订单已退款";
   return "订单状态更新中";
 }

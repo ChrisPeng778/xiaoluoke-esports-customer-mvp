@@ -16,6 +16,7 @@ import {
   formatTime,
   getCurrentCustomerOrder,
   getOrderChat,
+  getOrderSupportSummary,
   settleOrder,
   simulateAcceptOrder,
   simulateWorkerComplete,
@@ -31,11 +32,15 @@ export default function OrderDetailPage() {
   const [message, setMessage] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
   const [customerRating, setCustomerRating] = useState(5);
+  const [reviewContent, setReviewContent] = useState("");
+  const [reviewAnonymous, setReviewAnonymous] = useState(false);
+  const [supportSummary, setSupportSummary] = useState<ReturnType<typeof getOrderSupportSummary>>({ feedback: [], complaints: [], aftersales: [], reviews: [] });
 
   const loadOrder = useCallback(() => {
     if (!params.id) return;
     setOrder(getCurrentCustomerOrder(params.id));
     setUnreadCount(getOrderChat(params.id).unreadCount);
+    setSupportSummary(getOrderSupportSummary(params.id));
   }, [params.id]);
 
   useStoreSync(loadOrder, ready && Boolean(session), 1500);
@@ -143,14 +148,28 @@ export default function OrderDetailPage() {
             <div className="panel p-4">
               <h2 className="text-lg font-black text-slate-900">给接单员评价</h2>
               <p className="mt-2 text-sm font-bold text-slate-500">请选择本次服务星级，确认结单后会记录到订单中。</p>
-              <StarRating value={customerRating} onChange={setCustomerRating} />
+            <StarRating value={customerRating} onChange={setCustomerRating} />
+              <textarea className="field mt-3 min-h-24 resize-none py-3" value={reviewContent} onChange={(event) => setReviewContent(event.target.value)} placeholder="可以补充一句服务感受（选填）" />
+              <label className="mt-3 flex items-center gap-2 text-sm font-bold text-slate-600">
+                <input type="checkbox" checked={reviewAnonymous} onChange={(event) => setReviewAnonymous(event.target.checked)} />
+                匿名评价
+              </label>
             </div>
-            <button className="primary-button w-full" onClick={() => runAction(() => settleOrder(order.id, customerRating), "已确认结单，评价已提交，会员等级已自动更新")}>
+            <button className="primary-button w-full" onClick={() => runAction(() => settleOrder(order.id, customerRating, reviewContent, reviewAnonymous), "已确认结单，评价已提交，会员等级已自动更新")}>
               确认结单
             </button>
             <button className="secondary-button w-full" onClick={() => runAction(() => disputeOrder(order.id), "订单已提交疑问，等待管理员处理")}>
               有疑问
             </button>
+          </div>
+        ) : null}
+
+        {order.orderType === "service" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <Link href={`/customer/report?type=question&orderId=${order.id}`} className="secondary-button">有疑问</Link>
+            <Link href={`/customer/report?type=complaint&orderId=${order.id}`} className="secondary-button">投诉</Link>
+            <Link href={`/customer/after-sale?orderId=${order.id}`} className="secondary-button">申请售后</Link>
+            <a href="#support-progress" className="secondary-button">查看处理进度</a>
           </div>
         ) : null}
 
@@ -168,8 +187,28 @@ export default function OrderDetailPage() {
                 <span key={index}>{index < order.customerRating! ? "★" : "☆"}</span>
               ))}
             </div>
+            {supportSummary.reviews[0]?.content ? <p className="mt-3 rounded-[14px] bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600">{supportSummary.reviews[0].content}</p> : null}
           </div>
         ) : null}
+
+        <div id="support-progress" className="panel p-4">
+          <h2 className="text-lg font-black text-slate-900">处理进度</h2>
+          <div className="mt-3 space-y-3">
+            {[...supportSummary.complaints, ...supportSummary.aftersales, ...supportSummary.feedback].slice(0, 8).map((item) => (
+              <div key={item.id} className="rounded-[14px] border border-slate-100 bg-slate-50 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-black text-slate-900">{"reason" in item ? item.title : item.title}</p>
+                  <span className="shrink-0 rounded-full bg-white px-2 py-1 text-xs font-black text-slate-600">{supportStatusText(item.status)}</span>
+                </div>
+                <p className="mt-1 text-xs font-bold text-slate-400">{formatTime(item.updatedAt)}</p>
+                {item.adminReply ? <p className="mt-2 rounded-xl bg-white px-3 py-2 text-xs font-bold text-slate-600">平台回复：{item.adminReply}</p> : null}
+              </div>
+            ))}
+            {!supportSummary.complaints.length && !supportSummary.aftersales.length && !supportSummary.feedback.length ? (
+              <p className="rounded-[14px] bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">暂无处理记录</p>
+            ) : null}
+          </div>
+        </div>
 
         {process.env.NODE_ENV === "development" && order.orderType === "service" ? (
           <div className="panel border-dashed border-rock-gold/70 p-4">
@@ -221,6 +260,14 @@ function canOpenChat(order: Order) {
     ["accepted", "worker_completed", "disputed", "settled"].includes(order.status) &&
     Boolean(order.workerId && order.workerName)
   );
+}
+
+function supportStatusText(status: string) {
+  if (status === "processing") return "处理中";
+  if (status === "resolved") return "已解决";
+  if (status === "closed") return "已关闭";
+  if (status === "rejected") return "已拒绝";
+  return "待处理";
 }
 
 function StarRating({ value, onChange }: { value: number; onChange: (value: number) => void }) {

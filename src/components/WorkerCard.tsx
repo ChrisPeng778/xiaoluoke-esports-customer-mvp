@@ -32,6 +32,7 @@ export function WorkerCard({ worker, selectableHref }: { worker: Worker; selecta
           <div className="mt-3 flex gap-3 text-xs font-bold text-slate-500">
             <span>已完成 {worker.completedOrderCount}</span>
             <span>好评率 {worker.rating}%</span>
+            {worker.ratingAvg ? <span>{worker.ratingAvg.toFixed(1)} 星</span> : null}
           </div>
         </div>
       </div>

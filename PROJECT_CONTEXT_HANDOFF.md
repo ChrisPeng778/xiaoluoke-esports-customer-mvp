@@ -143,24 +143,25 @@
 26. `/admin/announcements`
 27. `/admin/feedback`
 28. `/admin/disputes`
-29. `/admin/logs`
-30. `/admin/permissions`
-31. `/admin/permissions/roles`
-32. `/admin/permissions/admin-users`
-33. `/admin/permissions/menus`
-34. `/admin/settings`
-35. `/admin/settings/basic`
-36. `/admin/settings/tip`
-37. `/admin/settings/customer-service`
-38. `/admin/settings/sms`
-39. `/admin/settings/notification`
-40. `/admin/settings/agreement`
-41. `/admin/settings/worker`
-42. `/admin/settings/payment`
-43. `/admin/settings/order`
-44. `/admin/settings/business-target`
-45. `/admin/settings/finance`
-46. `/admin/settings/resources`
+29. `/admin/feedback/reviews`
+30. `/admin/logs`
+31. `/admin/permissions`
+32. `/admin/permissions/roles`
+33. `/admin/permissions/admin-users`
+34. `/admin/permissions/menus`
+35. `/admin/settings`
+36. `/admin/settings/basic`
+37. `/admin/settings/tip`
+38. `/admin/settings/customer-service`
+39. `/admin/settings/sms`
+40. `/admin/settings/notification`
+41. `/admin/settings/agreement`
+42. `/admin/settings/worker`
+43. `/admin/settings/payment`
+44. `/admin/settings/order`
+45. `/admin/settings/business-target`
+46. `/admin/settings/finance`
+47. `/admin/settings/resources`
 
 设置模块本轮已新增或完善 `/admin/settings/basic` 到 `/admin/settings/resources`，`/admin/settings` 会进入基础设置。
 
@@ -215,10 +216,18 @@
 18. `admin_logs`
 19. `system_settings`
 20. `member_level_settings`
+21. `feedback_tickets`
+22. `order_complaints`
+23. `aftersale_orders`
+24. `order_reviews`
 
 本轮设置模块统一数据源已完成：`system_settings` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`。不要新增独立写入的 `xiaoluoke_system_settings` localStorage key；代码中若保留该名称，只能作为旧数据读取/迁移兼容。
 
 本轮会员等级配置并入 shared store 已完成：新增 `member_level_settings`，统一持久化在主 store key `xiaoluoke_customer_mvp_store` 内。`xiaoluoke_admin_member_level_settings` 不再作为主要数据源，只作为旧数据迁移来源；`readStore()` 初始化时会迁移旧 key 到主 store，并移除旧 key。`npm run build` 已通过。
+
+本轮投诉 / 反馈 / 售后 / 评价闭环已完成：`feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`，不新增独立 localStorage key。订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作已写入 `admin_logs`，所有新增和处理动作已触发 `xiaoluoke_store_updated`。
+
+真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位，不接真实服务。最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
 
 ### 6.2 session / 状态 key
 
@@ -236,7 +245,7 @@
 
 `xiaoluoke_admin_member_level_settings`
 
-该 key 当前不在 `StoreShape` 中，属于需要后续确认是否应迁入统一 store 的数据。
+该 key 只作为旧数据迁移来源，不再作为主要数据源；会员等级配置已统一迁入 `StoreShape.member_level_settings`。
 
 ## 7. 当前核心数据结构
 
@@ -672,15 +681,18 @@
 
 管理端关键操作必须写入 `admin_logs`。
 
-### 7.14 投诉 / 反馈 / 评价结构
+### 7.14 投诉 / 反馈 / 售后 / 评价结构
 
-当前扫描到独立 `feedback`、`disputes`、`reviews` 数据结构并未出现在 `StoreShape` 中。当前可用兼容方式：
+投诉 / 反馈 / 售后 / 评价闭环已并入 `StoreShape`：
 
-1. 纠纷：主要通过 `orders.status = disputed`、`order.disputeReason` 表达。
-2. 评价：主要通过 `order.customerRating`、`order.reviewedAt` 和 `worker.rating/ratingAvg` 表达。
-3. 反馈/投诉：有管理端页面路由 `/admin/feedback`、`/admin/disputes`，但独立数据表结构需要后续确认。
+1. `feedback_tickets`：普通反馈、疑问咨询、功能建议。
+2. `order_complaints`：订单投诉和订单疑问，关联 `orderId`、`customerId`、`workerId`。
+3. `aftersale_orders`：售后申请，关联 `orderId`、`customerId`、`workerId`、`refundAmount`、`reason`、`status`。
+4. `order_reviews`：订单评价，关联 `orderId`、`customerId`、`workerId`、`rating`、`content`、`isAnonymous`、`status`。
+5. 订单增加 `complaintFlag`、`aftersaleFlag`、`reviewId`。
+6. 接单员增加 `ratingAvg`、`reviewCount`。
 
-这部分属于部分完成/不确定区域，后续开发前必须先扫描页面实现。
+管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已接入上述结构；管理端处理动作写入 `admin_logs` 并触发 `xiaoluoke_store_updated`。
 
 ## 8. 当前 store 关键能力
 
@@ -700,6 +712,7 @@
 12. 接单员管理：`adminUpdateWorkerProfile`、`adminSetWorkerFrozen`、`adminAdjustWorkerDeposit`、`adminUpdateWorkerCommission`、`adminAdjustWorkerBalance`
 13. 充值套餐：`adminUpsertRechargePackage`、`adminSetRechargePackageStatus`、`adminDeleteRechargePackage`
 14. 权限：`adminUpsertRole`、`adminUpdateRolePermissions`、`adminUpsertAdminUser`、`adminUpsertAdminMenu`
+15. 投诉 / 反馈 / 售后 / 评价：`submitFeedbackTicket`、`submitOrderComplaint`、`submitAfterSaleOrder`、`getCurrentCustomerSupportRecords`、`getCurrentWorkerSupportRecords`、`adminUpdateFeedbackTicket`、`adminDeleteFeedbackTicket`、`adminUpdateOrderComplaint`、`adminUpdateAfterSaleOrder`、`adminUpdateOrderReview`
 
 ## 9. 已确认业务规则
 
@@ -906,6 +919,21 @@
 6. 管理端 `/admin/users/member-levels` 保存后会写入 `admin_logs`、触发 `xiaoluoke_store_updated`，并影响顾客端等级展示和下单折扣。
 7. 本轮修改后 `npm run build` 已通过。
 
+### 9.12 投诉 / 反馈 / 售后 / 评价
+
+投诉 / 反馈 / 售后 / 评价闭环已完成：
+
+1. `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入 `xiaoluoke_customer_mvp_store`，不新增独立 localStorage key。
+2. 订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`，只做必要轻量联动，不破坏订单主流程。
+3. 接单员已增加 `ratingAvg`、`reviewCount`，评价可影响接单员评分展示。
+4. 顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价。
+5. 接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态。
+6. 管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。
+7. 管理端处理动作已写入 `admin_logs`。
+8. 所有新增和处理动作已触发 `xiaoluoke_store_updated`。
+9. 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位。
+10. 本轮修改后 `npm run build` 已通过，生成 78 个页面/API 路由。
+
 ## 10. 管理端菜单结构要求
 
 默认一级菜单应为：
@@ -974,25 +1002,21 @@
 7. 公告：管理端发布后，顾客端和接单员端按 visibleTo 同步。
 8. 设置：管理端配置后，顾客端和接单员端读取同一配置。
 9. 权限：管理端菜单、路由、按钮和危险操作受权限控制。
-10. 评价/投诉/纠纷：订单评价、disputed 状态、反馈列表、管理端处理联动。
+10. 评价/投诉/纠纷：`feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews`、订单轻量标记、接单员评分和管理端处理联动。
 
 ## 12. 当前不确定或需人工确认的内容
 
-1. 独立 `reviews`、`feedback`、`disputes` 数据结构未在 `StoreShape` 中发现，当前可能依赖 orders 兼容字段。
-2. `payment_records` 类型存在，但持久化数组未发现，当前应是 `buildPaymentRecords` 生成视图。
-3. 投诉 / 反馈 / 售后 / 评价闭环尚未修复，下一轮建议优先处理。
-4. 用户后续多次要求的 UI 微调是否全部完成，需要浏览器人工确认。
-5. 设置模块已并入共享 `system_settings`，会员等级配置已并入共享 `member_level_settings`，但企业微信客服、公众号 H5、微信支付、提现、短信、资源上传仍是占位，不是真实服务。
-6. 腾讯云部署相关步骤曾讨论过，但当前文档任务不做部署操作。
+1. `payment_records` 类型存在，但持久化数组未发现，当前应是 `buildPaymentRecords` 生成视图。
+2. 用户后续多次要求的 UI 微调是否全部完成，需要浏览器人工确认。
+3. 设置模块已并入共享 `system_settings`，会员等级配置已并入共享 `member_level_settings`，投诉 / 反馈 / 售后 / 评价闭环已并入主 store，但企业微信客服、公众号 H5、微信支付、真实退款到账、提现、短信、资源上传仍是占位，不是真实服务。
+4. 腾讯云部署相关步骤曾讨论过，但当前文档任务不做部署操作。
 
 ## 13. 下一轮 Codex 优先检查清单
 
 1. 先运行 `npm run build`，确认当前代码可构建。
 2. 先读本文件和 `MODULE_STATUS.md`，不要凭记忆开发。
-3. 每次只选择一个模块继续，优先修不确定和半完成模块。
-4. 设置模块统一数据源已完成；会员等级配置并入 shared store 已完成。
-5. 下一轮建议优先修复：投诉 / 反馈 / 售后 / 评价闭环。先确认是否新增共享数据结构，避免写散乱假数据。
-6. 若继续权限模块，先检查 `AdminLayout`、`canAccessAdminPath`、按钮权限是否真实生效。
-7. 若继续财务模块，先确认 `wallet_ledger`、`withdraw_requests`、`buildPaymentRecords` 口径一致。
-8. 若继续商品模块，先确认商品上下架、分类上下架、推荐排序是否影响顾客端。
-9. 改完任何模块必须跑 `npm run build`。
+3. 设置模块统一数据源已完成；会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环已完成。
+4. 下一轮建议做“三端整体联动检查与修复”，不要直接开发新大功能。
+5. 联动检查重点：商品上下架和分类、订单主流程、钱包流水、聊天、公告、权限、设置、反馈/投诉/售后/评价的跨端同步、统计口径、按钮有效性和占位残留。
+6. 不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+7. 改完任何模块必须跑 `npm run build`。
