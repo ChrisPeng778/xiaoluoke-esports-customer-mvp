@@ -20,6 +20,7 @@ import type {
   LedgerDirection,
   LedgerType,
   MemberLevel,
+  MemberLevelSetting,
   Order,
   OrderStatus,
   PaymentRecord,
@@ -51,6 +52,7 @@ const WORKER_SESSION_KEY = "xiaoluoke_worker_mvp_current_worker_id";
 const ADMIN_SESSION_KEY = "xiaoluoke_admin_session";
 const LEGACY_ADMIN_SESSION_KEY = "xiaoluoke_admin_mvp_logged_in";
 const LEGACY_SYSTEM_SETTINGS_KEY = "xiaoluoke_system_settings";
+const LEGACY_MEMBER_LEVEL_SETTINGS_KEY = "xiaoluoke_admin_member_level_settings";
 export const STORE_UPDATED_EVENT = "xiaoluoke_store_updated";
 
 const now = () => new Date().toISOString();
@@ -106,6 +108,10 @@ export const formatTime = (iso?: string) => {
   }).format(new Date(iso));
 };
 
+function hasStorage() {
+  return typeof window !== "undefined" && Boolean(window.localStorage);
+}
+
 export function isProductActive(product: Pick<Product, "status" | "deleted">) {
   return !product.deleted && (product.status === "on" || product.status === "active");
 }
@@ -114,22 +120,142 @@ export function productStatusLabel(status: Product["status"]) {
   return status === "on" || status === "active" ? "上架" : "下架";
 }
 
+function cloneMemberLevelSettings(settings: MemberLevelSetting[]): MemberLevelSetting[] {
+  return JSON.parse(JSON.stringify(settings)) as MemberLevelSetting[];
+}
+
+function parseDiscountRate(value: unknown, fallback: number) {
+  if (typeof value === "number") return Math.max(0.01, Math.min(1, money(value)));
+  if (typeof value !== "string") return fallback;
+  const clean = value.trim();
+  if (!clean || clean === "待定") return fallback;
+  const numeric = Number(clean.replace(/[^\d.]/g, ""));
+  if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
+  if (clean.includes("%")) return Math.max(0.01, Math.min(1, money(numeric / 100)));
+  if (clean.includes("折") && numeric > 1) return Math.max(0.01, Math.min(1, money(numeric / 10)));
+  return Math.max(0.01, Math.min(1, money(numeric)));
+}
+
+function parseUpgradeReward(value: unknown, fallback: number) {
+  if (typeof value === "number") return Math.max(0, money(value));
+  if (typeof value !== "string") return fallback;
+  const numeric = Number(value.replace(/[^\d.]/g, ""));
+  return Number.isFinite(numeric) ? Math.max(0, money(numeric)) : fallback;
+}
+
+function readLegacyMemberLevelSettings(): unknown[] | null {
+  if (!hasStorage()) return null;
+  try {
+    const legacy = window.localStorage.getItem(LEGACY_MEMBER_LEVEL_SETTINGS_KEY);
+    if (!legacy) return null;
+    const parsed = JSON.parse(legacy) as unknown;
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function removeLegacyMemberLevelSettings() {
+  if (!hasStorage()) return;
+  window.localStorage.removeItem(LEGACY_MEMBER_LEVEL_SETTINGS_KEY);
+}
+
+function migrateMemberLevelSetting(raw: Partial<MemberLevelSetting> & {
+  threshold?: number;
+  discount?: string | number;
+  reward?: string | number;
+}, index: number): MemberLevelSetting {
+  const seed = initialStore.member_level_settings[index % initialStore.member_level_settings.length];
+  const createdAt = raw.createdAt ?? seed.createdAt ?? now();
+  return {
+    id: raw.id ?? seed.id ?? makeId("member_level"),
+    name: raw.name?.trim() || seed.name,
+    minSpend: Math.max(0, money(Number(raw.minSpend ?? raw.threshold ?? seed.minSpend) || 0)),
+    discountRate: parseDiscountRate(raw.discountRate ?? raw.discount, seed.discountRate),
+    upgradeReward: parseUpgradeReward(raw.upgradeReward ?? raw.reward, seed.upgradeReward),
+    enabled: raw.enabled ?? true,
+    sort: Number(raw.sort ?? (index + 1) * 10),
+    createdAt,
+    updatedAt: raw.updatedAt ?? createdAt,
+  };
+}
+
+function normalizeMemberLevelSettings(raw?: unknown): MemberLevelSetting[] {
+  const source = Array.isArray(raw) && raw.length
+    ? raw
+    : readLegacyMemberLevelSettings() ?? initialStore.member_level_settings;
+  const levels = source.map((item, index) => migrateMemberLevelSetting(item as Partial<MemberLevelSetting>, index));
+  const normalized = (levels.length ? levels : cloneMemberLevelSettings(initialStore.member_level_settings))
+    .sort((a, b) => a.sort - b.sort || a.minSpend - b.minSpend)
+    .map((level, index) => ({ ...level, sort: Number(level.sort || (index + 1) * 10) }));
+  return normalized.length ? normalized : cloneMemberLevelSettings(initialStore.member_level_settings);
+}
+
+function enabledMemberLevels(settings: MemberLevelSetting[]) {
+  const enabled = settings.filter((level) => level.enabled).sort((a, b) => a.minSpend - b.minSpend || a.sort - b.sort);
+  return enabled.length ? enabled : normalizeMemberLevelSettings(initialStore.member_level_settings);
+}
+
+function readMemberLevelSettingsFromStorage() {
+  if (!hasStorage()) return normalizeMemberLevelSettings(initialStore.member_level_settings);
+  try {
+    const raw = window.localStorage.getItem(STORE_KEY);
+    if (!raw) return normalizeMemberLevelSettings();
+    const parsed = JSON.parse(raw) as Partial<StoreShape>;
+    return normalizeMemberLevelSettings(parsed.member_level_settings);
+  } catch {
+    return normalizeMemberLevelSettings();
+  }
+}
+
+function calculateMemberLevelFromSettings(totalSpent: number, settings: MemberLevelSetting[]): MemberLevel {
+  const levels = enabledMemberLevels(settings);
+  const spent = money(Math.max(0, Number(totalSpent) || 0));
+  const current = [...levels].reverse().find((level) => spent >= level.minSpend);
+  return current?.name ?? levels[0]?.name ?? "会员";
+}
+
+function getMemberDiscountRateFromSettings(totalSpent: number, settings: MemberLevelSetting[]) {
+  const levels = enabledMemberLevels(settings);
+  const spent = money(Math.max(0, Number(totalSpent) || 0));
+  const current = [...levels].reverse().find((level) => spent >= level.minSpend);
+  return current?.discountRate ?? 1;
+}
+
+function syncCustomerMemberLevels(store: StoreShape) {
+  store.wallet_accounts.forEach((wallet) => {
+    if (wallet.ownerType !== "customer") return;
+    wallet.memberLevel = calculateMemberLevelFromSettings(wallet.totalSpent, store.member_level_settings);
+    const user = store.users.find((item) => item.id === wallet.userId);
+    if (user) syncUserWallet(user, wallet);
+  });
+}
+
+export function getMemberLevelSettings(): MemberLevelSetting[] {
+  return readStore().member_level_settings;
+}
+
 export function calculateMemberLevel(totalSpent: number): MemberLevel {
-  if (totalSpent >= 1000) return "顶级会员";
-  if (totalSpent >= 500) return "高级会员";
-  if (totalSpent >= 200) return "中级会员";
-  return "普通会员";
+  return calculateMemberLevelFromSettings(totalSpent, readMemberLevelSettingsFromStorage());
+}
+
+export function getMemberDiscountRate(totalSpent: number) {
+  return getMemberDiscountRateFromSettings(totalSpent, readMemberLevelSettingsFromStorage());
 }
 
 export function nextLevelGap(totalSpent: number) {
-  if (totalSpent < 200) return { next: "中级会员", gap: money(200 - totalSpent), progress: totalSpent / 200 };
-  if (totalSpent < 500) return { next: "高级会员", gap: money(500 - totalSpent), progress: (totalSpent - 200) / 300 };
-  if (totalSpent < 1000) return { next: "顶级会员", gap: money(1000 - totalSpent), progress: (totalSpent - 500) / 500 };
-  return { next: "已达最高等级", gap: 0, progress: 1 };
-}
-
-function hasStorage() {
-  return typeof window !== "undefined" && Boolean(window.localStorage);
+  const levels = enabledMemberLevels(readMemberLevelSettingsFromStorage());
+  const spent = money(Math.max(0, Number(totalSpent) || 0));
+  const currentIndex = levels.reduce((index, level, current) => (spent >= level.minSpend ? current : index), -1);
+  const next = levels.find((level) => level.minSpend > spent);
+  if (!next) return { next: "已达最高等级", gap: 0, progress: 1 };
+  const currentMinSpend = currentIndex >= 0 ? levels[currentIndex].minSpend : 0;
+  const span = Math.max(1, next.minSpend - currentMinSpend);
+  return {
+    next: next.name,
+    gap: money(Math.max(0, next.minSpend - spent)),
+    progress: Math.max(0, Math.min(1, (spent - currentMinSpend) / span)),
+  };
 }
 
 function cloneSettings(settings: SystemSettings): SystemSettings {
@@ -600,6 +726,7 @@ function migrateRechargePackage(raw: Partial<RechargePackage>, index = 0): Recha
 
 function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
   const fresh = freshInitialStore();
+  const member_level_settings = normalizeMemberLevelSettings(parsed.member_level_settings);
   const users = (parsed.users ?? []).map(migrateUser);
   const wallet_accounts = (parsed.wallet_accounts ?? []).map((wallet) =>
     migrateWallet(wallet, users.find((user) => user.id === wallet.userId)),
@@ -632,11 +759,15 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
   users.forEach((user) => {
     const wallet = wallet_accounts.find((item) => item.userId === user.id);
     if (!wallet) {
-      wallet_accounts.push(migrateWallet({}, user));
+      const createdWallet = migrateWallet({}, user);
+      createdWallet.memberLevel = calculateMemberLevelFromSettings(createdWallet.totalSpent, member_level_settings);
+      user.memberLevel = createdWallet.memberLevel;
+      wallet_accounts.push(createdWallet);
     } else {
       user.availableBalance = wallet.availableBalance;
       user.frozenBalance = wallet.frozenBalance;
       user.totalSpent = wallet.totalSpent;
+      wallet.memberLevel = calculateMemberLevelFromSettings(wallet.totalSpent, member_level_settings);
       user.memberLevel = wallet.memberLevel;
     }
   });
@@ -652,7 +783,7 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
         frozenBalance: 0,
         totalSpent: 0,
         totalEarned: money(worker.totalEarned ?? 0),
-        memberLevel: "普通会员",
+        memberLevel: calculateMemberLevelFromSettings(0, member_level_settings),
         updatedAt: now(),
       });
     } else {
@@ -768,6 +899,7 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
     admin_menus,
     admin_logs: (parsed.admin_logs ?? []).map(migrateAdminLog),
     system_settings,
+    member_level_settings,
   };
 }
 
@@ -776,18 +908,21 @@ export function readStore(): StoreShape {
 
   const raw = window.localStorage.getItem(STORE_KEY);
   if (!raw) {
-    const fresh = freshInitialStore();
+    const fresh = ensureStoreShape({});
     window.localStorage.setItem(STORE_KEY, JSON.stringify(fresh));
+    removeLegacyMemberLevelSettings();
     return fresh;
   }
 
   try {
     const merged = ensureStoreShape(JSON.parse(raw) as Partial<StoreShape>);
     window.localStorage.setItem(STORE_KEY, JSON.stringify(merged));
+    removeLegacyMemberLevelSettings();
     return merged;
   } catch {
-    const fresh = freshInitialStore();
+    const fresh = ensureStoreShape({});
     window.localStorage.setItem(STORE_KEY, JSON.stringify(fresh));
+    removeLegacyMemberLevelSettings();
     return fresh;
   }
 }
@@ -1047,7 +1182,7 @@ function ensureWorkerWallet(store: StoreShape, worker: Worker): WalletAccount {
       frozenBalance: 0,
       totalSpent: 0,
       totalEarned: money(worker.totalEarned),
-      memberLevel: "普通会员",
+      memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
       updatedAt: now(),
     };
     store.wallet_accounts.push(wallet);
@@ -1085,7 +1220,7 @@ export function getCurrentWorkerSession(): WorkerSession | null {
       frozenBalance: 0,
       totalSpent: 0,
       totalEarned: money(worker.totalEarned),
-      memberLevel: "普通会员",
+      memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
       updatedAt: now(),
     };
     store.wallet_accounts.push(wallet);
@@ -1109,7 +1244,7 @@ export function mockWorkerLogin(workerId: string): WorkerSession {
         frozenBalance: 0,
         totalSpent: 0,
         totalEarned: money(worker.totalEarned),
-        memberLevel: "普通会员",
+        memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
         updatedAt: now(),
       };
       store.wallet_accounts.push(wallet);
@@ -1138,7 +1273,7 @@ export function setCurrentWorkerOnlineStatus(onlineStatus: Worker["onlineStatus"
         frozenBalance: 0,
         totalSpent: 0,
         totalEarned: money(worker.totalEarned),
-        memberLevel: "普通会员",
+        memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
         updatedAt: now(),
       };
       store.wallet_accounts.push(wallet);
@@ -1170,7 +1305,7 @@ export function updateCurrentWorkerIntro(intro: string): WorkerSession {
         frozenBalance: 0,
         totalSpent: 0,
         totalEarned: money(worker.totalEarned),
-        memberLevel: "普通会员",
+        memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
         updatedAt: now(),
       };
       store.wallet_accounts.push(wallet);
@@ -1200,7 +1335,7 @@ export function updateCurrentWorkerAvatar(avatarUrl: string): WorkerSession {
         frozenBalance: 0,
         totalSpent: 0,
         totalEarned: money(worker.totalEarned),
-        memberLevel: "普通会员",
+        memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
         updatedAt: now(),
       };
       store.wallet_accounts.push(wallet);
@@ -1232,7 +1367,7 @@ export function updateCurrentWorkerName(name: string): WorkerSession {
         frozenBalance: 0,
         totalSpent: 0,
         totalEarned: money(worker.totalEarned),
-        memberLevel: "普通会员",
+        memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
         updatedAt: now(),
       };
       store.wallet_accounts.push(wallet);
@@ -1260,13 +1395,13 @@ export function mockWechatLogin(): CustomerSession {
       nicknameEditable: true,
       avatarUrl: "",
       role: "customer",
-      memberLevel: "普通会员",
+      memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
       totalSpent: 0,
       availableBalance: 0,
       frozenBalance: 0,
       createdAt: now(),
     };
-    const wallet = migrateWallet({}, user);
+    const wallet = { ...migrateWallet({}, user), memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings) };
     store.users.push(user);
     store.wallet_accounts.push(wallet);
     setCurrentUserId(user.id);
@@ -1324,13 +1459,13 @@ export function registerCustomer(input: {
       nicknameEditable: true,
       avatarUrl: "",
       role: "customer",
-      memberLevel: "普通会员",
+      memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
       totalSpent: 0,
       availableBalance: 0,
       frozenBalance: 0,
       createdAt: now(),
     };
-    const wallet = migrateWallet({}, user);
+    const wallet = { ...migrateWallet({}, user), memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings) };
 
     store.users.push(user);
     store.wallet_accounts.push(wallet);
@@ -1610,6 +1745,21 @@ export function adminUpdateSystemSettings<K extends keyof SystemSettings>(
     store.system_settings = nextSettings;
     addAdminLog(store, actionType, "settings", String(section), detail);
     return store.system_settings;
+  });
+}
+
+export function adminUpdateMemberLevelSettings(settings: MemberLevelSetting[]): MemberLevelSetting[] {
+  requirePermission("users.member_levels.manage");
+  return updateStore((store) => {
+    const nextSettings = normalizeMemberLevelSettings(settings).map((level, index) => ({
+      ...level,
+      sort: Number(level.sort || (index + 1) * 10),
+      updatedAt: now(),
+    }));
+    store.member_level_settings = nextSettings;
+    syncCustomerMemberLevels(store);
+    addAdminLog(store, "member_level_update", "settings", "member_levels", "编辑会员等级配置");
+    return store.member_level_settings;
   });
 }
 
@@ -2133,8 +2283,9 @@ export function createServiceOrder(input: {
     if (input.paymentMethod === "alipay") return { ok: false, message: "支付宝支付功能待接入" };
 
     const quantity = Math.max(1, input.quantity);
-    const amountLockeCoin = money(product.priceLockeCoin * quantity);
-    const amountRmb = money(product.priceRmb * quantity);
+    const discountRate = getMemberDiscountRateFromSettings(wallet.totalSpent, store.member_level_settings);
+    const amountLockeCoin = money(product.priceLockeCoin * quantity * discountRate);
+    const amountRmb = money(product.priceRmb * quantity * discountRate);
     if (wallet.availableBalance < amountLockeCoin) return { ok: false, message: "洛克贝不足，请先充值" };
 
     const order: Order = {
@@ -2255,7 +2406,7 @@ export function createTipOrder(input: {
 
     wallet.availableBalance = money(wallet.availableBalance - input.amount);
     wallet.totalSpent = money(wallet.totalSpent + input.amount);
-    wallet.memberLevel = calculateMemberLevel(wallet.totalSpent);
+    wallet.memberLevel = calculateMemberLevelFromSettings(wallet.totalSpent, store.member_level_settings);
     wallet.updatedAt = now();
     syncUserWallet(user, wallet);
     worker.availableBalance = money(worker.availableBalance + input.amount);
@@ -2704,7 +2855,7 @@ export function settleOrder(orderId: string, customerRating = 5): Order {
     order.ratedAt = now();
     wallet.frozenBalance = money(Math.max(0, wallet.frozenBalance - order.amountLockeCoin));
     wallet.totalSpent = money(wallet.totalSpent + order.amountLockeCoin);
-    wallet.memberLevel = calculateMemberLevel(wallet.totalSpent);
+    wallet.memberLevel = calculateMemberLevelFromSettings(wallet.totalSpent, store.member_level_settings);
     wallet.updatedAt = now();
     syncUserWallet(user, wallet);
 
@@ -3010,7 +3161,7 @@ export function adminSettleOrder(orderId: string): Order {
 
     userWallet.frozenBalance = money(Math.max(0, userWallet.frozenBalance - order.amountLockeCoin));
     userWallet.totalSpent = money(userWallet.totalSpent + order.amountLockeCoin);
-    userWallet.memberLevel = calculateMemberLevel(userWallet.totalSpent);
+    userWallet.memberLevel = calculateMemberLevelFromSettings(userWallet.totalSpent, store.member_level_settings);
     userWallet.updatedAt = now();
     syncUserWallet(user, userWallet);
 
@@ -3153,14 +3304,14 @@ export function adminCreateOrder(input: {
         avatarUrl: "",
         role: "customer",
         status: "active",
-        memberLevel: "普通会员",
+        memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings),
         totalSpent: 0,
         availableBalance: 0,
         frozenBalance: 0,
         createdAt: now(),
         updatedAt: now(),
       };
-      userWallet = migrateWallet({}, user);
+      userWallet = { ...migrateWallet({}, user), memberLevel: calculateMemberLevelFromSettings(0, store.member_level_settings) };
       store.users.push(user);
       store.wallet_accounts.push(userWallet);
     }

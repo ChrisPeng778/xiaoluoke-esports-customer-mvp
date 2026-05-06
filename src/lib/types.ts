@@ -1,6 +1,6 @@
 export type UserRole = "customer" | "worker" | "admin";
 
-export type MemberLevel = "普通会员" | "中级会员" | "高级会员" | "顶级会员";
+export type MemberLevel = string;
 
 export type ProductCategory = "PVP专区" | "陪玩专区" | "资源专区" | "异色专区";
 
@@ -276,6 +276,18 @@ export interface WalletAccount {
   totalSpent: number;
   totalEarned: number;
   memberLevel: MemberLevel;
+  updatedAt: string;
+}
+
+export interface MemberLevelSetting {
+  id: string;
+  name: string;
+  minSpend: number;
+  discountRate: number;
+  upgradeReward: number;
+  enabled: boolean;
+  sort: number;
+  createdAt: string;
   updatedAt: string;
 }
 
@@ -631,6 +643,7 @@ export interface StoreShape {
   admin_menus: AdminMenu[];
   admin_logs: AdminLog[];
   system_settings: SystemSettings;
+  member_level_settings: MemberLevelSetting[];
 }
 
 export interface CustomerSession {

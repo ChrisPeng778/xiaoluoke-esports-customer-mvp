@@ -1,50 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
-import { appendAdminLog } from "@/lib/store";
-
-type MemberLevelRow = {
-  id: string;
-  name: string;
-  threshold: number;
-  discount: string;
-  reward: string;
-  enabled: boolean;
-};
-
-const STORAGE_KEY = "xiaoluoke_admin_member_level_settings";
-
-const defaults: MemberLevelRow[] = [
-  { id: "normal", name: "普通会员", threshold: 0, discount: "待定", reward: "待定", enabled: true },
-  { id: "middle", name: "中级会员", threshold: 200, discount: "待定", reward: "待定", enabled: true },
-  { id: "high", name: "高级会员", threshold: 500, discount: "待定", reward: "待定", enabled: true },
-  { id: "top", name: "顶级会员", threshold: 1000, discount: "待定", reward: "待定", enabled: true },
-];
+import { adminUpdateMemberLevelSettings, getMemberLevelSettings } from "@/lib/store";
+import type { MemberLevelSetting } from "@/lib/types";
 
 export default function AdminMemberLevelsPage() {
-  const [rows, setRows] = useState<MemberLevelRow[]>(defaults);
+  const [rows, setRows] = useState<MemberLevelSetting[]>(() => getMemberLevelSettings());
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try {
-        setRows(JSON.parse(raw) as MemberLevelRow[]);
-      } catch {
-        setRows(defaults);
-      }
-    }
-  }, []);
-
-  const update = (id: string, patch: Partial<MemberLevelRow>) => {
+  const update = (id: string, patch: Partial<MemberLevelSetting>) => {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   };
 
   const save = () => {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rows));
-    appendAdminLog("member_level_update", "settings", "member_levels", "编辑会员等级配置");
-    setMessage("会员等级配置已保存。当前折扣和升级奖励只作为展示，不影响顾客下单价格。");
+    try {
+      const saved = adminUpdateMemberLevelSettings(rows);
+      setRows(saved);
+      setMessage("会员等级配置已保存，顾客端等级与下单折扣会按统一规则生效。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "保存失败");
+    }
   };
 
   return (
@@ -53,24 +29,26 @@ export default function AdminMemberLevelsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-black">会员等级管理</h2>
-            <p className="mt-1 text-sm font-bold text-slate-400">按小洛克电竞规则配置，顾客会员等级仍根据累计消费自动计算</p>
+            <p className="mt-1 text-sm font-bold text-slate-400">等级、折扣、升级奖励统一保存到 shared store，顾客端按累计消费自动匹配</p>
           </div>
-          <AdminBadge tone="blue">测试版</AdminBadge>
+          <AdminBadge tone="blue">共享配置</AdminBadge>
         </div>
 
         <div className="mt-5 overflow-x-auto">
           <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="bg-slate-50 text-xs font-black text-slate-500">
-              <tr>{["排序", "等级名称", "消费门槛", "折扣说明", "升级奖励", "状态"].map((item) => <th key={item} className="px-4 py-3">{item}</th>)}</tr>
+              <tr>{["排序", "等级名称", "消费门槛", "折扣率", "升级奖励", "状态"].map((item) => <th key={item} className="px-4 py-3">{item}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {rows.map((row, index) => (
+              {rows.map((row) => (
                 <tr key={row.id}>
-                  <td className="px-4 py-4 font-black text-slate-500">{(index + 1) * 10}</td>
+                  <td className="px-4 py-4">
+                    <input type="number" className="h-10 w-24 rounded-xl border border-slate-200 px-3 font-bold" value={row.sort} onChange={(event) => update(row.id, { sort: Number(event.target.value) })} />
+                  </td>
                   <td className="px-4 py-4"><input className="h-10 rounded-xl border border-slate-200 px-3 font-bold" value={row.name} onChange={(event) => update(row.id, { name: event.target.value })} /></td>
-                  <td className="px-4 py-4"><input type="number" className="h-10 rounded-xl border border-slate-200 px-3 font-bold" value={row.threshold} onChange={(event) => update(row.id, { threshold: Number(event.target.value) })} /></td>
-                  <td className="px-4 py-4"><input className="h-10 rounded-xl border border-slate-200 px-3 font-bold" value={row.discount} onChange={(event) => update(row.id, { discount: event.target.value })} /></td>
-                  <td className="px-4 py-4"><input className="h-10 rounded-xl border border-slate-200 px-3 font-bold" value={row.reward} onChange={(event) => update(row.id, { reward: event.target.value })} /></td>
+                  <td className="px-4 py-4"><input type="number" className="h-10 rounded-xl border border-slate-200 px-3 font-bold" value={row.minSpend} onChange={(event) => update(row.id, { minSpend: Number(event.target.value) })} /></td>
+                  <td className="px-4 py-4"><input type="number" step="0.01" min="0.01" max="1" className="h-10 rounded-xl border border-slate-200 px-3 font-bold" value={row.discountRate} onChange={(event) => update(row.id, { discountRate: Number(event.target.value) })} /></td>
+                  <td className="px-4 py-4"><input type="number" className="h-10 rounded-xl border border-slate-200 px-3 font-bold" value={row.upgradeReward} onChange={(event) => update(row.id, { upgradeReward: Number(event.target.value) })} /></td>
                   <td className="px-4 py-4">
                     <button className={`rounded-full px-3 py-1 text-xs font-black ${row.enabled ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`} onClick={() => update(row.id, { enabled: !row.enabled })}>
                       {row.enabled ? "启用" : "停用"}

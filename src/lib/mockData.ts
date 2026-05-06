@@ -1,9 +1,56 @@
-import type { AdminMenu, AdminRole, AdminUser, Announcement, Product, ProductCategoryRecord, RechargePackage, StoreShape, SystemSettings, Worker } from "./types";
+import type { AdminMenu, AdminRole, AdminUser, Announcement, MemberLevelSetting, Product, ProductCategoryRecord, RechargePackage, StoreShape, SystemSettings, Worker } from "./types";
 
 const createdAt = "2026-05-02T00:00:00.000Z";
 const serviceDescription =
   "当前为测试版商品页面，详细服务说明后续补充。下单前请确认需求并保持页面可联系。平台禁止外挂、脚本、BUG、盗号等违规行为。";
 const defaultProductImage = "/images/products/default-product.jpg";
+
+export const initialMemberLevelSettings: MemberLevelSetting[] = [
+  {
+    id: "member-level-platinum",
+    name: "白金会员",
+    minSpend: 100,
+    discountRate: 1,
+    upgradeReward: 0,
+    enabled: true,
+    sort: 10,
+    createdAt,
+    updatedAt: createdAt,
+  },
+  {
+    id: "member-level-diamond",
+    name: "钻石会员",
+    minSpend: 520,
+    discountRate: 1,
+    upgradeReward: 0,
+    enabled: true,
+    sort: 20,
+    createdAt,
+    updatedAt: createdAt,
+  },
+  {
+    id: "member-level-supreme",
+    name: "至尊会员",
+    minSpend: 1000,
+    discountRate: 0.93,
+    upgradeReward: 0,
+    enabled: true,
+    sort: 30,
+    createdAt,
+    updatedAt: createdAt,
+  },
+  {
+    id: "member-level-black-card",
+    name: "超级黑卡会员",
+    minSpend: 3000,
+    discountRate: 0.9,
+    upgradeReward: 0,
+    enabled: true,
+    sort: 40,
+    createdAt,
+    updatedAt: createdAt,
+  },
+];
 
 const product = (
   id: string,
@@ -597,4 +644,5 @@ export const initialStore: StoreShape = {
   admin_menus: initialAdminMenus,
   admin_logs: [],
   system_settings: initialSystemSettings,
+  member_level_settings: initialMemberLevelSettings,
 };

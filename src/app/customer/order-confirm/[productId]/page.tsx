@@ -14,6 +14,7 @@ import {
   formatCurrency,
   formatRock,
   getAvailablePaymentMethods,
+  getMemberDiscountRate,
   getProduct,
   getSystemSettings,
   getWorker,
@@ -49,12 +50,15 @@ function OrderConfirmContent() {
   const product = getProduct(params.productId);
   const selectedWorker = searchParams.get("workerId") ? getWorker(searchParams.get("workerId")!) : null;
   const quantity = Math.max(1, Number(quantityText) || 1);
+  const discountRate = session ? getMemberDiscountRate(session.wallet.totalSpent) : 1;
   const total = useMemo(
     () => ({
-      rmb: product ? product.priceRmb * quantity : 0,
-      locke: product ? product.priceLockeCoin * quantity : 0,
+      baseRmb: product ? product.priceRmb * quantity : 0,
+      baseLocke: product ? product.priceLockeCoin * quantity : 0,
+      rmb: product ? product.priceRmb * quantity * discountRate : 0,
+      locke: product ? product.priceLockeCoin * quantity * discountRate : 0,
     }),
-    [product, quantity],
+    [discountRate, product, quantity],
   );
 
   if (!ready) return null;
@@ -126,6 +130,7 @@ function OrderConfirmContent() {
               <p className="mt-1 text-sm font-bold text-orange-500">单价 {formatCurrency(product.priceRmb)}</p>
               <p className="mt-1 text-xs text-slate-500">数量 {quantity}，商品金额 {formatCurrency(total.rmb)}</p>
               <p className="mt-1 text-xs font-bold text-slate-500">洛克贝金额 {formatRock(total.locke)} 洛克贝</p>
+              {discountRate < 1 ? <p className="mt-1 text-xs font-black text-emerald-600">会员折扣 {(discountRate * 10).toFixed(1)} 折，原价 {formatRock(total.baseLocke)} 洛克贝</p> : null}
             </div>
           </div>
         </div>

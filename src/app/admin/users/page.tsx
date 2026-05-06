@@ -8,8 +8,6 @@ import { adminUpdateUserRemark, formatRock, formatTime, readStore } from "@/lib/
 import { statusText } from "@/lib/status";
 import type { StoreShape, User } from "@/lib/types";
 
-const memberLevels = ["", "普通会员", "中级会员", "高级会员", "顶级会员"];
-
 export default function AdminUsersPage() {
   const [store, setStore] = useState<StoreShape>(() => readStore());
   const [keyword, setKeyword] = useState("");
@@ -35,6 +33,14 @@ export default function AdminUsersPage() {
       .filter((user) => !status || (user.status ?? "active") === status)
       .filter((user) => !memberLevel || user.memberLevel === memberLevel);
   }, [keyword, memberLevel, status, store.users]);
+  const memberLevels = useMemo(() => {
+    const configured = store.member_level_settings
+      .filter((level) => level.enabled)
+      .sort((a, b) => a.sort - b.sort || a.minSpend - b.minSpend)
+      .map((level) => level.name);
+    const existing = store.users.map((user) => user.memberLevel).filter(Boolean);
+    return ["", ...Array.from(new Set([...configured, ...existing]))];
+  }, [store.member_level_settings, store.users]);
 
   const selectedUser = selectedId ? store.users.find((item) => item.id === selectedId) ?? null : null;
 
