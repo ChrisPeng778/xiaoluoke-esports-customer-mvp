@@ -27,11 +27,12 @@
 9. 财务必须统一走 wallet_ledger。支付记录可由 `buildPaymentRecords` 从订单/充值/打赏/流水生成，不要单独写假 payment_records。
 10. 平台抽成统一字段 `platformCommissionRate`，不再区分手游端/PC端。商品固定收益优先，否则用接单员抽成，否则默认抽成。
 11. 公告统一 `announcements`，按 `visibleTo`、`published`、发布时间和过期时间过滤。顾客端读 all/customer，接单员端读 all/worker，点击 viewCount +1。
-12. 权限是 localStorage MVP。默认 admin/0000，超级管理员不能被删除或禁用。已有 `hasPermission`、`requirePermission`、`canAccessAdminPath` 等，需要核对是否真的控制菜单、页面、按钮和危险操作。
+12. 权限是 localStorage MVP。默认 admin/0000，超级管理员不能被删除或禁用。管理端权限与危险操作一致性已完成：已复用 `hasPermission`、`requirePermission`、`canAccessAdminPath`，UI 层已对无权限按钮隐藏或 disabled 并提示，执行层已在危险操作函数内部加 `requirePermission` / `requireAnyPermission` 二次校验。已覆盖订单、用户、接单员、商品、分类、财务、提现、反馈、投诉、售后、评价、角色、管理员等危险操作。
 13. 设置模块统一数据源已完成：`system_settings` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`，包含 basic、tip、customerService、sms、notification、agreements、worker、payment、order、businessTarget、finance、resources。不要新增独立写入的 `xiaoluoke_system_settings` key；若代码中保留该名称，只能作为旧数据读取/迁移兼容。顾客端已读取基础设置、客服、协议、打赏、支付方式、下单必看；接单员端已读取基础设置、客服、接单员协议、保证金规则、最低保证金、财务提现规则。企业微信客服、公众号 H5、微信支付、提现、短信、资源上传都只是预留接口，没有接真实服务。
 14. 会员等级配置并入 shared store 已完成：管理端保存写入 `admin_logs` 并触发 `xiaoluoke_store_updated`，本轮 `npm run build` 已通过。
 15. 投诉 / 反馈 / 售后 / 评价闭环已完成：`feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入主 store；订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作写入 `admin_logs`，所有新增和处理动作触发 `xiaoluoke_store_updated`。真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位。
+16. 本轮新增或补齐权限点包括 `orders.restore`、`orders.mark_issue`、`orders.update_status`、`orders.delete`、`users.export`、`workers.export`、`finance.wallet.adjust`、`feedback.feedback.delete`、`feedback.reviews.hide`、`feedback.reviews.restore`、`permissions.roles.create`、`permissions.roles.edit`、`permissions.roles.delete`、`permissions.admin_users.create`、`permissions.admin_users.edit`、`permissions.admin_users.delete` 等。`orders.delete` 只补权限点，未新增删除订单业务函数；导出仍是 MVP 占位；`/admin/permissions/menus` 仍按 `permissions.menus.manage` 控制，未拆更细权限。
 
-当前三个优先模块状态：设置模块统一数据源已完成；会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环已完成。最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
+当前优先模块状态：设置模块统一数据源已完成；会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环已完成；管理端权限与危险操作一致性已完成。最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
 
-下一轮建议事项：不要直接开发新大功能，建议做“三端整体联动检查与修复”。重点核对顾客端、接单员端、管理端在商品、订单、钱包、聊天、公告、权限、设置、反馈/投诉/售后/评价之间是否仍有不同步、占位提示、按钮无效或统计口径不一致。不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+下一轮建议事项：不要直接开发新大功能，建议修“订单关闭/恢复/退款与钱包冻结、支付状态、售后投诉标记一致性”。重点核对订单关闭、恢复、退款时的冻结余额、可用余额、支付状态、订单状态、售后/投诉标记、聊天系统消息和 `admin_logs` 是否一致。不要顺手修真实退款到账，不要修 `/customer/must-read`，不要修旧提现页，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。

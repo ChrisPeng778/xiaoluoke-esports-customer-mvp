@@ -227,6 +227,8 @@
 
 本轮投诉 / 反馈 / 售后 / 评价闭环已完成：`feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`，不新增独立 localStorage key。订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作已写入 `admin_logs`，所有新增和处理动作已触发 `xiaoluoke_store_updated`。
 
+本轮管理端权限与危险操作一致性已完成：管理端危险操作权限已补齐，UI 层已对无权限按钮隐藏或 disabled 并提示“无权限操作”，执行层已在危险操作函数内部加 `requirePermission` / `requireAnyPermission` 二次校验，避免绕过按钮直接写入 store。已覆盖订单、用户、接单员、商品、分类、财务、提现、反馈、投诉、售后、评价、角色、管理员等危险操作。新增或补齐权限点包括 `orders.restore`、`orders.mark_issue`、`orders.update_status`、`orders.delete`、`users.export`、`workers.export`、`finance.wallet.adjust`、`feedback.feedback.delete`、`feedback.reviews.hide`、`feedback.reviews.restore`、`permissions.roles.create`、`permissions.roles.edit`、`permissions.roles.delete`、`permissions.admin_users.create`、`permissions.admin_users.edit`、`permissions.admin_users.delete` 等。`orders.delete` 只补权限点，未新增删除订单业务函数；导出仍是 MVP 占位；`/admin/permissions/menus` 仍按 `permissions.menus.manage` 控制，未拆更细权限。
+
 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位，不接真实服务。最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
 
 ### 6.2 session / 状态 key
@@ -866,6 +868,7 @@
 5. 超级管理员不能删除、禁用、取消自己的超级权限。
 6. 普通管理员不能操作超级管理员。
 7. 所有权限操作写入 admin_logs。
+8. 管理端权限与危险操作一致性已完成：按钮层已隐藏或禁用无权限危险操作，执行层已补 `requirePermission`，覆盖订单、用户、接单员、商品、分类、财务、提现、反馈、投诉、售后、评价、角色、管理员等。`orders.delete` 仅作为权限点存在，未新增删除订单业务函数；导出仍是 MVP 占位；菜单管理仍统一走 `permissions.menus.manage`。
 
 ### 9.10 设置
 
@@ -1015,8 +1018,8 @@
 
 1. 先运行 `npm run build`，确认当前代码可构建。
 2. 先读本文件和 `MODULE_STATUS.md`，不要凭记忆开发。
-3. 设置模块统一数据源已完成；会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环已完成。
-4. 下一轮建议做“三端整体联动检查与修复”，不要直接开发新大功能。
-5. 联动检查重点：商品上下架和分类、订单主流程、钱包流水、聊天、公告、权限、设置、反馈/投诉/售后/评价的跨端同步、统计口径、按钮有效性和占位残留。
-6. 不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+3. 设置模块统一数据源已完成；会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环已完成；管理端权限与危险操作一致性已完成。
+4. 下一轮建议修“订单关闭/恢复/退款与钱包冻结、支付状态、售后投诉标记一致性”，不要直接开发新大功能。
+5. 联动检查重点：订单关闭、恢复、退款时的冻结余额、可用余额、支付状态、订单状态、售后/投诉标记、聊天系统消息和 `admin_logs` 是否一致。
+6. 不要顺手接真实退款到账、真实财务提现打款、真实支付、短信、企业微信、COS/OSS 或 MongoDB。
 7. 改完任何模块必须跑 `npm run build`。

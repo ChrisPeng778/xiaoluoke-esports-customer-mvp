@@ -14,6 +14,7 @@ import {
   adminUpdateWorkerProfile,
   formatRock,
   formatTime,
+  hasPermission,
   readStore,
   workerAccountText,
   workerLevelLabel,
@@ -70,6 +71,13 @@ export default function AdminWorkersPage() {
   }, [keyword, level, port, status, store.workers]);
 
   const selectedWorker = selectedId ? store.workers.find((worker) => worker.id === selectedId) ?? null : null;
+  const canEditWorker = hasPermission("workers.edit");
+  const canFreezeWorker = hasPermission("workers.freeze");
+  const canUnfreezeWorker = hasPermission("workers.unfreeze");
+  const canAdjustDeposit = hasPermission("workers.deposit_adjust");
+  const canAdjustBalance = hasPermission("workers.balance_adjust");
+  const canSetCommission = hasPermission("workers.commission_set");
+  const canExportWorkers = hasPermission("workers.export");
 
   const run = (action: () => void, success: string) => {
     setMessage("");
@@ -89,9 +97,17 @@ export default function AdminWorkersPage() {
   };
 
   const openDialog = (workerId: string, type: DialogType) => {
+    if ((type === "edit" && !canEditWorker) || (type === "deposit" && !canAdjustDeposit) || (type === "balance" && !canAdjustBalance) || (type === "commission" && !canSetCommission)) {
+      setMessage("无权限操作");
+      return;
+    }
     setSelectedId(workerId);
     setDialog(type);
     setMessage("");
+  };
+  const openSelectedDialog = (type: DialogType) => {
+    if (!selectedWorker || !type) return;
+    openDialog(selectedWorker.id, type);
   };
 
   return (
@@ -102,7 +118,10 @@ export default function AdminWorkersPage() {
             <h2 className="text-xl font-black">接单员管理</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">资料、保证金、余额和平台抽成会同步到顾客端与接单员端</p>
           </div>
-          {message ? <p className="rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700">{message}</p> : null}
+          <div className="flex items-center gap-2">
+            {canExportWorkers ? <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-600" onClick={() => alert("导出功能为 MVP 占位。")}>导出</button> : <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>导出</button>}
+            {message ? <p className="rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700">{message}</p> : null}
+          </div>
         </div>
 
         <section className="mt-5 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 md:grid-cols-4">
@@ -164,13 +183,16 @@ export default function AdminWorkersPage() {
                     <td className="px-4 py-4">
                       <div className="flex flex-wrap gap-x-3 gap-y-2">
                         <button className="font-black text-blue-600" onClick={() => openDrawer(worker.id)}>查看详情</button>
-                        <button className="font-black text-slate-700" onClick={() => openDialog(worker.id, "edit")}>编辑资料</button>
-                        <button className="font-black text-amber-600" onClick={() => openDialog(worker.id, "deposit")}>代缴/代扣保证金</button>
-                        <button className="font-black text-emerald-600" onClick={() => openDialog(worker.id, "balance")}>余额调整</button>
-                        <button className="font-black text-purple-600" onClick={() => openDialog(worker.id, "commission")}>设置平台抽成</button>
-                        <button className={worker.status === "normal" ? "font-black text-rose-600" : "font-black text-emerald-600"} onClick={() => run(() => adminSetWorkerFrozen(worker.id, worker.status === "normal"), worker.status === "normal" ? "已冻结接单员" : "已解冻接单员")}>
+                        {canEditWorker ? <button className="font-black text-slate-700" onClick={() => openDialog(worker.id, "edit")}>编辑资料</button> : null}
+                        {canAdjustDeposit ? <button className="font-black text-amber-600" onClick={() => openDialog(worker.id, "deposit")}>代缴/代扣保证金</button> : null}
+                        {canAdjustBalance ? <button className="font-black text-emerald-600" onClick={() => openDialog(worker.id, "balance")}>余额调整</button> : null}
+                        {canSetCommission ? <button className="font-black text-purple-600" onClick={() => openDialog(worker.id, "commission")}>设置平台抽成</button> : null}
+                        {(worker.status === "normal" ? canFreezeWorker : canUnfreezeWorker) ? <button className={worker.status === "normal" ? "font-black text-rose-600" : "font-black text-emerald-600"} onClick={() => {
+                          if (!confirm(`确定${worker.status === "normal" ? "冻结" : "解冻"}接单员「${worker.name}」吗？`)) return;
+                          run(() => adminSetWorkerFrozen(worker.id, worker.status === "normal"), worker.status === "normal" ? "已冻结接单员" : "已解冻接单员");
+                        }}>
                           {worker.status === "normal" ? "冻结" : "解冻"}
-                        </button>
+                        </button> : null}
                       </div>
                     </td>
                   </tr>
@@ -192,8 +214,9 @@ export default function AdminWorkersPage() {
           ledgerTypeFilter={ledgerTypeFilter}
           setLedgerTypeFilter={setLedgerTypeFilter}
           onClose={() => setSelectedId(null)}
-          openDialog={(type) => setDialog(type)}
+          openDialog={openSelectedDialog}
           run={run}
+          permissions={{ canEditWorker, canFreezeWorker, canUnfreezeWorker, canAdjustDeposit, canAdjustBalance, canSetCommission }}
         />
       ) : null}
 
@@ -217,6 +240,7 @@ function WorkerDrawer({
   onClose,
   openDialog,
   run,
+  permissions,
 }: {
   worker: Worker;
   store: StoreShape;
@@ -229,6 +253,14 @@ function WorkerDrawer({
   onClose: () => void;
   openDialog: (type: DialogType) => void;
   run: (action: () => void, success: string) => void;
+  permissions: {
+    canEditWorker: boolean;
+    canFreezeWorker: boolean;
+    canUnfreezeWorker: boolean;
+    canAdjustDeposit: boolean;
+    canAdjustBalance: boolean;
+    canSetCommission: boolean;
+  };
 }) {
   const wallet = store.wallet_accounts.find((item) => item.userId === worker.id);
   const orders = store.orders
@@ -376,13 +408,17 @@ function WorkerDrawer({
         </section>
 
         <div className="sticky bottom-0 mt-8 flex flex-wrap gap-3 border-t border-slate-100 bg-white py-4">
-          <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white" onClick={() => openDialog("edit")}>编辑资料</button>
-          <button className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-black text-amber-700" onClick={() => openDialog("deposit")}>代缴/代扣保证金</button>
-          <button className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-black text-purple-700" onClick={() => openDialog("commission")}>设置平台抽成</button>
-          <button className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700" onClick={() => openDialog("balance")}>余额调整</button>
-          <button className={`rounded-xl px-4 py-2 text-sm font-black text-white ${worker.status === "normal" ? "bg-rose-600" : "bg-emerald-600"}`} onClick={() => run(() => adminSetWorkerFrozen(worker.id, worker.status === "normal"), worker.status === "normal" ? "已冻结接单员" : "已解冻接单员")}>
+          {permissions.canEditWorker ? <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white" onClick={() => openDialog("edit")}>编辑资料</button> : null}
+          {permissions.canAdjustDeposit ? <button className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-black text-amber-700" onClick={() => openDialog("deposit")}>代缴/代扣保证金</button> : null}
+          {permissions.canSetCommission ? <button className="rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 text-sm font-black text-purple-700" onClick={() => openDialog("commission")}>设置平台抽成</button> : null}
+          {permissions.canAdjustBalance ? <button className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700" onClick={() => openDialog("balance")}>余额调整</button> : null}
+          {(worker.status === "normal" ? permissions.canFreezeWorker : permissions.canUnfreezeWorker) ? <button className={`rounded-xl px-4 py-2 text-sm font-black text-white ${worker.status === "normal" ? "bg-rose-600" : "bg-emerald-600"}`} onClick={() => {
+            if (!confirm(`确定${worker.status === "normal" ? "冻结" : "解冻"}接单员「${worker.name}」吗？`)) return;
+            run(() => adminSetWorkerFrozen(worker.id, worker.status === "normal"), worker.status === "normal" ? "已冻结接单员" : "已解冻接单员");
+          }}>
             {worker.status === "normal" ? "冻结" : "解冻"}
-          </button>
+          </button> : null}
+          {!permissions.canEditWorker && !permissions.canAdjustDeposit && !permissions.canSetCommission && !permissions.canAdjustBalance && !(worker.status === "normal" ? permissions.canFreezeWorker : permissions.canUnfreezeWorker) ? <span className="rounded-xl bg-slate-50 px-4 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span> : null}
         </div>
       </aside>
     </div>

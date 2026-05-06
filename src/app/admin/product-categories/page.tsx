@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminDeleteProductCategory, adminSetProductCategoryStatus, adminUpsertProductCategory, isProductActive, productStatusLabel, readStore } from "@/lib/store";
+import { adminDeleteProductCategory, adminSetProductCategoryStatus, adminUpsertProductCategory, hasPermission, isProductActive, productStatusLabel, readStore } from "@/lib/store";
 import type { ProductCategoryRecord, ProductStatus, StoreShape } from "@/lib/types";
 
 type CategoryForm = {
@@ -87,6 +87,7 @@ export default function AdminProductCategoriesPage() {
   };
 
   const parentOptions = store.product_categories.filter((item) => !item.parentId && item.id !== form?.id);
+  const canManage = hasPermission("products.category_manage");
 
   return (
     <AdminLayout title="商品分类">
@@ -96,7 +97,7 @@ export default function AdminProductCategoriesPage() {
             <h2 className="text-xl font-black">商品分类</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">最多支持二级分类；下架分类会同步隐藏顾客端对应分类和商品。</p>
           </div>
-          <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white" onClick={openCreate}>新增分类</button>
+          {canManage ? <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white" onClick={openCreate}>新增分类</button> : <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>新增分类</button>}
         </div>
 
         <div className="mt-5 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 md:grid-cols-[1fr_220px_auto]">
@@ -130,9 +131,10 @@ export default function AdminProductCategoriesPage() {
                     <td className="px-4 py-4 text-xs font-bold text-slate-500">{new Date(category.createdAt).toLocaleString("zh-CN")}</td>
                     <td className="px-4 py-4">
                       <div className="flex gap-3">
-                        <button className="font-black text-blue-600" onClick={() => openEdit(category)}>编辑</button>
-                        <button className="font-black text-slate-600" onClick={() => setStatus(category, isProductActive(category) ? "inactive" : "active")}>{isProductActive(category) ? "下架" : "上架"}</button>
-                        <button className="font-black text-rose-500" onClick={() => remove(category)}>删除</button>
+                        {canManage ? <button className="font-black text-blue-600" onClick={() => openEdit(category)}>编辑</button> : null}
+                        {canManage ? <button className="font-black text-slate-600" onClick={() => setStatus(category, isProductActive(category) ? "inactive" : "active")}>{isProductActive(category) ? "下架" : "上架"}</button> : null}
+                        {canManage ? <button className="font-black text-rose-500" onClick={() => remove(category)}>删除</button> : null}
+                        {!canManage ? <span className="text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span> : null}
                       </div>
                     </td>
                   </tr>

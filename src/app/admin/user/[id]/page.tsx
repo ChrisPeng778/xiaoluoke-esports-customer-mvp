@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminAdjustWallet, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminAdjustWallet, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import { statusText } from "@/lib/status";
 import type { StoreShape } from "@/lib/types";
 
@@ -24,6 +24,7 @@ export default function AdminUserDetailPage() {
   const orders = store.orders.filter((order) => order.customerId === params.id);
   const recharges = store.recharge_orders.filter((order) => order.userId === params.id);
   const ledger = store.wallet_ledger.filter((entry) => entry.userId === params.id);
+  const canAdjustBalance = hasPermission("users.adjust_balance");
 
   const adjust = () => {
     setMessage("");
@@ -75,7 +76,7 @@ export default function AdminUserDetailPage() {
           </div>
 
           <div className="space-y-4">
-            <AdminCard className="p-5">
+            {canAdjustBalance ? <AdminCard className="p-5">
               <h3 className="text-lg font-black">管理员调整洛克贝</h3>
               <div className="mt-4 grid gap-3">
                 <select className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold" value={direction} onChange={(event) => setDirection(event.target.value as "in" | "out")}>
@@ -87,7 +88,7 @@ export default function AdminUserDetailPage() {
                 <button className="rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white" onClick={adjust}>确认调整</button>
                 {message ? <p className="text-sm font-bold text-blue-600">{message}</p> : null}
               </div>
-            </AdminCard>
+            </AdminCard> : <AdminCard className="p-5"><h3 className="text-lg font-black">管理员调整洛克贝</h3><p className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</p></AdminCard>}
             <AdminCard className="p-5">
               <h3 className="text-lg font-black">充值记录</h3>
               <p className="mt-2 text-sm font-bold text-slate-500">共 {recharges.length} 条</p>

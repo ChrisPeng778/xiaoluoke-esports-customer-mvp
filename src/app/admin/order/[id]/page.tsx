@@ -6,7 +6,7 @@ import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
 import { statusText } from "@/lib/status";
-import { adminRefundOrder, adminSettleOrder, adminUpdateOrderStatus, calculateOrderSettlement, formatCurrency, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminRefundOrder, adminSettleOrder, adminUpdateOrderStatus, calculateOrderSettlement, formatCurrency, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { ChatMessage, Order, StoreShape } from "@/lib/types";
 
 const flow = [
@@ -42,6 +42,10 @@ export default function AdminOrderDetailPage() {
       setMessage(error instanceof Error ? error.message : "操作失败");
     }
   };
+  const confirmRun = (messageText: string, action: () => void, success: string) => {
+    if (!confirm(messageText)) return;
+    run(action, success);
+  };
 
   if (!order) {
     return <AdminLayout title="订单详情"><AdminCard className="p-8 text-center font-bold text-slate-400">订单不存在</AdminCard></AdminLayout>;
@@ -55,6 +59,11 @@ export default function AdminOrderDetailPage() {
   const statusHistory = order.statusHistory?.length
     ? order.statusHistory
     : [{ id: "created", title: "订单已创建", createdAt: order.createdAt, operator: "system" as const, status: order.status, detail: undefined }];
+  const canSettle = hasPermission("orders.settle");
+  const canRefund = hasPermission("orders.refund");
+  const canMarkIssue = hasPermission("orders.mark_issue");
+  const canClose = hasPermission("orders.close");
+  const canRestore = hasPermission("orders.restore");
 
   return (
     <AdminLayout title="订单详情">
@@ -191,11 +200,12 @@ export default function AdminOrderDetailPage() {
           <AdminCard className="p-5">
             <h3 className="text-lg font-black">管理操作</h3>
             <div className="mt-4 grid gap-3">
-              <button className="h-11 rounded-xl bg-blue-600 text-sm font-black text-white" onClick={() => run(() => adminSettleOrder(order.id), "管理员结单成功")}>管理员结单</button>
-              <button className="h-11 rounded-xl bg-rose-600 text-sm font-black text-white" onClick={() => run(() => adminRefundOrder(order.id), "退款成功")}>退款给顾客</button>
-              <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => run(() => adminUpdateOrderStatus(order.id, "disputed"), "已标记有疑问")}>标记有疑问</button>
-              <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => run(() => adminUpdateOrderStatus(order.id, "cancelled"), "已关闭订单")}>关闭订单</button>
-              <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => run(() => adminUpdateOrderStatus(order.id, "pending"), "已恢复为待接单")}>恢复订单</button>
+              {canSettle ? <button className="h-11 rounded-xl bg-blue-600 text-sm font-black text-white" onClick={() => confirmRun("确定由管理员结单该订单吗？", () => adminSettleOrder(order.id), "管理员结单成功")}>管理员结单</button> : null}
+              {canRefund ? <button className="h-11 rounded-xl bg-rose-600 text-sm font-black text-white" onClick={() => confirmRun("确定退款给顾客吗？当前为 MVP 模拟退款。", () => adminRefundOrder(order.id), "退款成功")}>退款给顾客</button> : null}
+              {canMarkIssue ? <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => run(() => adminUpdateOrderStatus(order.id, "disputed"), "已标记有疑问")}>标记有疑问</button> : null}
+              {canClose ? <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => confirmRun("确定关闭该订单吗？本轮不处理冻结资金释放。", () => adminUpdateOrderStatus(order.id, "cancelled"), "已关闭订单")}>关闭订单</button> : null}
+              {canRestore ? <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => confirmRun("确定恢复该订单为待接单吗？", () => adminUpdateOrderStatus(order.id, "pending"), "已恢复为待接单")}>恢复订单</button> : null}
+              {!canSettle && !canRefund && !canMarkIssue && !canClose && !canRestore ? <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</p> : null}
             </div>
           </AdminCard>
 

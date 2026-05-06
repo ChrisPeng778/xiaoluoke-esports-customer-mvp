@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminAdjustWallet, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminAdjustWallet, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { StoreShape } from "@/lib/types";
 
 export default function AdminWalletPage() {
@@ -20,8 +20,10 @@ export default function AdminWalletPage() {
     ...store.users.filter((user) => user.role === "customer").map((user) => ({ id: user.id, label: `顾客：${user.nickname}` })),
     ...store.workers.map((worker) => ({ id: worker.id, label: `接单员：${worker.name}` })),
   ], [store.users, store.workers]);
+  const canAdjust = hasPermission("finance.wallet.adjust");
 
   const adjust = () => {
+    if (!confirm("确定手动调整洛克贝吗？")) return;
     setMessage("");
     try {
       adminAdjustWallet({ userId: targetId, direction, amount: Number(amount), reason });
@@ -37,7 +39,7 @@ export default function AdminWalletPage() {
   return (
     <AdminLayout title="钱包管理">
       <section className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <AdminCard className="p-5">
+        {canAdjust ? <AdminCard className="p-5">
           <h2 className="text-xl font-black">钱包流水</h2>
           <div className="mt-5 overflow-x-auto">
             <table className="w-full min-w-[980px] text-left text-sm">
@@ -64,7 +66,7 @@ export default function AdminWalletPage() {
               </tbody>
             </table>
           </div>
-        </AdminCard>
+        </AdminCard> : <AdminCard className="p-5"><h2 className="text-lg font-black">手动调整洛克贝</h2><p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</p></AdminCard>}
         <AdminCard className="p-5">
           <h2 className="text-lg font-black">手动调整洛克贝</h2>
           <div className="mt-4 grid gap-3">

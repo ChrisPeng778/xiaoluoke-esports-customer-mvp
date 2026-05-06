@@ -831,6 +831,83 @@ function collectPermissionKeys(menus: AdminMenu[]) {
   return Array.from(new Set(menus.map((menu) => menu.permissionKey).filter(Boolean))) as string[];
 }
 
+const ADMIN_PERMISSION_ALIASES: Record<string, string[]> = {
+  "order.view": ["orders.view"],
+  "order.create": ["orders.create"],
+  "order.assign": ["orders.assign"],
+  "order.update_status": ["orders.update_status"],
+  "order.complete": ["orders.settle"],
+  "order.refund": ["orders.refund"],
+  "order.close": ["orders.close"],
+  "order.restore": ["orders.restore"],
+  "order.mark_issue": ["orders.mark_issue"],
+  "order.delete": ["orders.delete"],
+  "user.view": ["users.view"],
+  "user.edit": ["users.edit"],
+  "user.adjust_balance": ["users.adjust_balance"],
+  "user.freeze": ["users.freeze"],
+  "user.unfreeze": ["users.unfreeze"],
+  "user.export": ["users.export"],
+  "worker.view": ["workers.view"],
+  "worker.edit": ["workers.edit"],
+  "worker.freeze": ["workers.freeze"],
+  "worker.unfreeze": ["workers.unfreeze"],
+  "worker.adjust_balance": ["workers.balance_adjust"],
+  "worker.adjust_deposit": ["workers.deposit_adjust"],
+  "worker.set_commission": ["workers.commission_set"],
+  "worker.export": ["workers.export"],
+  "product.view": ["products.view"],
+  "product.create": ["products.create"],
+  "product.edit": ["products.edit"],
+  "product.delete": ["products.delete"],
+  "product.toggle_status": ["products.publish", "products.unpublish"],
+  "product.category_manage": ["products.category_manage"],
+  "finance.view": ["finance.payments.view", "finance.ledger.view"],
+  "finance.adjust_wallet": ["finance.wallet.adjust"],
+  "finance.withdraw_review": ["finance.withdraw.approve", "finance.withdraw.reject"],
+  "finance.withdraw_pay": ["finance.withdraw.mark_paid"],
+  "finance.refund_review": ["orders.refund"],
+  "feedback.view": ["feedback.feedback.view"],
+  "feedback.reply": ["feedback.feedback.reply"],
+  "feedback.resolve": ["feedback.feedback.reply"],
+  "feedback.close": ["feedback.feedback.reply"],
+  "feedback.delete": ["feedback.feedback.delete"],
+  "complaint.view": ["feedback.complaints.view"],
+  "complaint.handle": ["feedback.complaints.handle"],
+  "aftersale.view": ["feedback.complaints.view"],
+  "aftersale.handle": ["feedback.complaints.handle"],
+  "review.view": ["feedback.reviews.view"],
+  "review.hide": ["feedback.reviews.hide"],
+  "review.restore": ["feedback.reviews.restore"],
+  "feedback.reviews.hide": ["feedback.reviews.handle"],
+  "feedback.reviews.restore": ["feedback.reviews.handle"],
+  "permission.view": ["permissions.roles.manage", "permissions.admin_users.manage", "permissions.menus.manage"],
+  "permission.role_create": ["permissions.roles.create"],
+  "permission.role_edit": ["permissions.roles.edit"],
+  "permission.role_delete": ["permissions.roles.delete"],
+  "permission.assign": ["permissions.assign"],
+  "permission.admin_create": ["permissions.admin_users.create"],
+  "permission.admin_edit": ["permissions.admin_users.edit"],
+  "permission.admin_delete": ["permissions.admin_users.delete"],
+  "permission.menu_manage": ["permissions.menus.manage"],
+  "permissions.roles.create": ["permissions.roles.manage"],
+  "permissions.roles.edit": ["permissions.roles.manage"],
+  "permissions.roles.delete": ["permissions.roles.manage"],
+  "permissions.admin_users.create": ["permissions.admin_users.manage"],
+  "permissions.admin_users.edit": ["permissions.admin_users.manage"],
+  "permissions.admin_users.delete": ["permissions.admin_users.manage"],
+};
+
+function expandPermissionKeys(permissionKey: string): string[] {
+  const related = new Set<string>([permissionKey]);
+  const direct = ADMIN_PERMISSION_ALIASES[permissionKey] ?? [];
+  direct.forEach((key) => related.add(key));
+  Object.entries(ADMIN_PERMISSION_ALIASES).forEach(([alias, targets]) => {
+    if (targets.includes(permissionKey)) related.add(alias);
+  });
+  return Array.from(related);
+}
+
 function migrateRechargePackage(raw: Partial<RechargePackage>, index = 0): RechargePackage {
   const amountRmb = money(raw.amountRmb ?? 50);
   const bonusLockeCoin = money(raw.bonusLockeCoin ?? 0);
@@ -1245,7 +1322,7 @@ export function hasPermission(permissionKey?: string) {
   const session = getCurrentAdminSession();
   if (!session) return false;
   if (session.roles.includes("super_admin")) return true;
-  return session.permissions.includes(permissionKey);
+  return expandPermissionKeys(permissionKey).some((key) => session.permissions.includes(key));
 }
 
 export function hasAnyPermission(permissionKeys: string[]) {
@@ -1256,6 +1333,12 @@ export function hasAnyPermission(permissionKeys: string[]) {
 export function requirePermission(permissionKey: string) {
   if (hasPermission(permissionKey)) return;
   appendAdminLog("permission_denied", "permission", permissionKey, `无权限执行：${permissionKey}`);
+  throw new Error("无权限执行该操作，请联系管理员");
+}
+
+export function requireAnyPermission(permissionKeys: string[]) {
+  if (hasAnyPermission(permissionKeys)) return;
+  appendAdminLog("permission_denied", "permission", permissionKeys.join(","), `无权限执行：${permissionKeys.join(" / ")}`);
   throw new Error("无权限执行该操作，请联系管理员");
 }
 
@@ -2121,7 +2204,7 @@ export function adminUpdateFeedbackTicket(ticketId: string, patch: { status?: Su
 }
 
 export function adminDeleteFeedbackTicket(ticketId: string): void {
-  requirePermission("feedback.feedback.reply");
+  requirePermission("feedback.feedback.delete");
   updateStore((store) => {
     const ticket = store.feedback_tickets.find((item) => item.id === ticketId);
     store.feedback_tickets = store.feedback_tickets.filter((item) => item.id !== ticketId);
@@ -2174,7 +2257,7 @@ export function adminUpdateAfterSaleOrder(aftersaleId: string, patch: { status?:
 }
 
 export function adminUpdateOrderReview(reviewId: string, status: OrderReviewStatus): OrderReview {
-  requirePermission("feedback.reviews.handle");
+  requirePermission(status === "hidden" ? "feedback.reviews.hide" : status === "visible" ? "feedback.reviews.restore" : "feedback.reviews.handle");
   return updateStore((store) => {
     const review = store.order_reviews.find((item) => item.id === reviewId);
     if (!review) throw new Error("评价不存在");
@@ -2288,7 +2371,7 @@ export function adminUpsertRole(input: {
   status?: AdminRole["status"];
   permissions?: string[];
 }) {
-  requirePermission("permissions.roles.manage");
+  requirePermission(input.id ? "permissions.roles.edit" : "permissions.roles.create");
   const name = input.name.trim();
   const code = input.code.trim();
   if (!name) throw new Error("角色名称不能为空");
@@ -2329,7 +2412,7 @@ export function adminUpsertRole(input: {
 }
 
 export function adminUpdateRolePermissions(roleId: string, permissions: string[]) {
-  requirePermission("permissions.roles.manage");
+  requirePermission("permissions.assign");
   return updateStore((store) => {
     const role = store.admin_roles.find((item) => item.id === roleId);
     if (!role) throw new Error("角色不存在");
@@ -2342,7 +2425,7 @@ export function adminUpdateRolePermissions(roleId: string, permissions: string[]
 }
 
 export function adminDeleteRole(roleId: string) {
-  requirePermission("permissions.roles.manage");
+  requirePermission("permissions.roles.delete");
   updateStore((store) => {
     const role = store.admin_roles.find((item) => item.id === roleId);
     if (!role) throw new Error("角色不存在");
@@ -2363,7 +2446,7 @@ export function adminUpsertAdminUser(input: {
   roleIds: string[];
   status?: AdminUser["status"];
 }) {
-  requirePermission("permissions.admin_users.manage");
+  requirePermission(input.id ? "permissions.admin_users.edit" : "permissions.admin_users.create");
   const name = input.name.trim();
   const username = input.username.trim();
   if (!name) throw new Error("姓名不能为空");
@@ -2411,7 +2494,7 @@ export function adminUpsertAdminUser(input: {
 }
 
 export function adminDeleteAdminUser(userId: string) {
-  requirePermission("permissions.admin_users.manage");
+  requirePermission("permissions.admin_users.delete");
   updateStore((store) => {
     const session = readRawAdminSession();
     const user = store.admin_users.find((item) => item.id === userId);
@@ -2424,7 +2507,7 @@ export function adminDeleteAdminUser(userId: string) {
 }
 
 export function adminToggleAdminUserStatus(userId: string, status?: AdminUser["status"]) {
-  requirePermission("permissions.admin_users.manage");
+  requirePermission("permissions.admin_users.edit");
   return updateStore((store) => {
     const session = readRawAdminSession();
     const user = store.admin_users.find((item) => item.id === userId);
@@ -3497,6 +3580,7 @@ export function adminCreateProduct(input: {
   requireRemark?: boolean;
   allowAssignedWorker?: boolean;
 }): Product {
+  requirePermission("products.create");
   return updateStore((store) => {
     const priceRmb = money(input.priceRmb || 1);
     const priceLockeCoin = money(input.priceLockeCoin || priceRmb);
@@ -3542,6 +3626,7 @@ export function adminCreateProduct(input: {
 }
 
 export function adminUpdateProduct(productId: string, patch: Partial<Product>): Product {
+  requirePermission("products.edit");
   return updateStore((store) => {
     const product = store.products.find((item) => item.id === productId);
     if (!product) throw new Error("商品不存在");
@@ -3559,6 +3644,7 @@ export function adminUpdateProduct(productId: string, patch: Partial<Product>): 
 }
 
 export function adminSetProductStatus(productId: string, status: Product["status"]): Product {
+  requirePermission(status === "active" || status === "on" ? "products.publish" : "products.unpublish");
   return updateStore((store) => {
     const product = store.products.find((item) => item.id === productId);
     if (!product) throw new Error("商品不存在");
@@ -3570,6 +3656,7 @@ export function adminSetProductStatus(productId: string, status: Product["status
 }
 
 export function adminSoftDeleteProduct(productId: string): Product {
+  requirePermission("products.delete");
   return updateStore((store) => {
     const product = store.products.find((item) => item.id === productId);
     if (!product) throw new Error("商品不存在");
@@ -3582,6 +3669,7 @@ export function adminSoftDeleteProduct(productId: string): Product {
 }
 
 export function adminUpsertProductCategory(input: Partial<ProductCategoryRecord> & { name: string }): ProductCategoryRecord {
+  requirePermission("products.category_manage");
   return updateStore((store) => {
     const name = input.name.trim();
     if (!name) throw new Error("分类名称不能为空");
@@ -3620,6 +3708,7 @@ export function adminUpsertProductCategory(input: Partial<ProductCategoryRecord>
 }
 
 export function adminSetProductCategoryStatus(categoryId: string, status: Product["status"]): ProductCategoryRecord {
+  requirePermission("products.category_manage");
   return updateStore((store) => {
     const category = store.product_categories.find((item) => item.id === categoryId);
     if (!category) throw new Error("分类不存在");
@@ -3631,6 +3720,7 @@ export function adminSetProductCategoryStatus(categoryId: string, status: Produc
 }
 
 export function adminDeleteProductCategory(categoryId: string): void {
+  requirePermission("products.category_manage");
   updateStore((store) => {
     const category = store.product_categories.find((item) => item.id === categoryId);
     if (!category) throw new Error("分类不存在");
@@ -3659,6 +3749,7 @@ function ensureAdminChatMessage(store: StoreShape, order: Order, content: string
 }
 
 export function adminSettleOrder(orderId: string): Order {
+  requirePermission("orders.settle");
   return updateStore((store) => {
     const order = store.orders.find((item) => item.id === orderId);
     if (!order) throw new Error("订单不存在");
@@ -3733,6 +3824,7 @@ export function adminSettleOrder(orderId: string): Order {
 }
 
 export function adminRefundOrder(orderId: string): Order {
+  requirePermission("orders.refund");
   return updateStore((store) => {
     const order = store.orders.find((item) => item.id === orderId);
     if (!order) throw new Error("订单不存在");
@@ -3768,6 +3860,10 @@ export function adminRefundOrder(orderId: string): Order {
 }
 
 export function adminUpdateOrderStatus(orderId: string, status: OrderStatus): Order {
+  if (status === "cancelled") requirePermission("orders.close");
+  else if (status === "pending") requirePermission("orders.restore");
+  else if (status === "disputed") requirePermission("orders.mark_issue");
+  else requirePermission("orders.update_status");
   return updateStore((store) => {
     const order = store.orders.find((item) => item.id === orderId);
     if (!order) throw new Error("订单不存在");
@@ -3801,6 +3897,7 @@ export function adminCreateOrder(input: {
   gameNickname: string;
   remark?: string;
 }): Order {
+  requirePermission(input.workerId ? "orders.assign" : "orders.create");
   return updateStore((store) => {
     let user: User | undefined;
     let userWallet: WalletAccount | undefined;
@@ -3927,6 +4024,7 @@ export function adminCreateOrder(input: {
 }
 
 export function adminUpdateWorkerLevel(workerId: string, level: WorkerLevel): Worker {
+  requirePermission("workers.edit");
   return updateStore((store) => {
     const worker = store.workers.find((item) => item.id === workerId);
     if (!worker) throw new Error("接单员不存在");
@@ -3948,6 +4046,7 @@ export function adminUpdateWorkerProfile(workerId: string, input: {
   intro?: string;
   servicePort?: ServicePort;
 }): Worker {
+  requirePermission("workers.edit");
   return updateStore((store) => {
     const worker = store.workers.find((item) => item.id === workerId);
     if (!worker) throw new Error("接单员不存在");
@@ -3989,6 +4088,7 @@ export function adminUpdateWorkerProfile(workerId: string, input: {
 }
 
 export function adminSetWorkerFrozen(workerId: string, frozen: boolean): Worker {
+  requirePermission(frozen ? "workers.freeze" : "workers.unfreeze");
   return updateStore((store) => {
     const worker = store.workers.find((item) => item.id === workerId);
     if (!worker) throw new Error("接单员不存在");
@@ -4001,12 +4101,25 @@ export function adminSetWorkerFrozen(workerId: string, frozen: boolean): Worker 
 }
 
 export function adminUpdateUserRemark(userId: string, remark: string): User {
+  requirePermission("users.edit");
   return updateStore((store) => {
     const user = store.users.find((item) => item.id === userId);
     if (!user) throw new Error("用户不存在");
     user.adminRemark = remark.trim();
     user.updatedAt = now();
     addAdminLog(store, "user_remark_update", "user", user.id, `更新用户备注：${user.nickname}`);
+    return user;
+  });
+}
+
+export function adminSetUserFrozen(userId: string, frozen: boolean): User {
+  requirePermission(frozen ? "users.freeze" : "users.unfreeze");
+  return updateStore((store) => {
+    const user = store.users.find((item) => item.id === userId);
+    if (!user) throw new Error("用户不存在");
+    user.status = frozen ? "frozen" : "active";
+    user.updatedAt = now();
+    addAdminLog(store, frozen ? "user_freeze" : "user_unfreeze", "user", user.id, `${frozen ? "冻结" : "解封"}用户：${user.nickname}`);
     return user;
   });
 }
@@ -4021,6 +4134,7 @@ export function adminAdjustWorkerDeposit(input: {
   amount: number;
   remark: string;
 }): Worker {
+  requirePermission("workers.deposit_adjust");
   return updateStore((store) => {
     const worker = store.workers.find((item) => item.id === input.workerId);
     if (!worker) throw new Error("接单员不存在");
@@ -4052,6 +4166,7 @@ export function adminAdjustWorkerDeposit(input: {
 }
 
 export function adminUpdateWorkerCommission(workerId: string, rate: number): Worker {
+  requirePermission("workers.commission_set");
   return updateStore((store) => {
     const worker = store.workers.find((item) => item.id === workerId);
     if (!worker) throw new Error("接单员不存在");
@@ -4073,6 +4188,7 @@ export function adminAdjustWorkerBalance(input: {
   amount: number;
   remark: string;
 }): WalletAccount {
+  requirePermission("workers.balance_adjust");
   return updateStore((store) => {
     const worker = store.workers.find((item) => item.id === input.workerId);
     if (!worker) throw new Error("接单员不存在");
@@ -4110,6 +4226,11 @@ export function adminAdjustWallet(input: {
   amount: number;
   reason: string;
 }): WalletAccount {
+  const targetWallet = readStore().wallet_accounts.find((item) => item.userId === input.userId);
+  requireAnyPermission([
+    "finance.wallet.adjust",
+    targetWallet?.ownerType === "worker" ? "workers.balance_adjust" : "users.adjust_balance",
+  ]);
   return updateStore((store) => {
     const amount = money(input.amount);
     if (amount <= 0) throw new Error("调整数量必须大于 0");
@@ -4147,6 +4268,7 @@ export function adminUpsertRechargePackage(input: {
   bonusLockeCoin: number;
   status: RechargePackage["status"];
 }): RechargePackage {
+  requirePermission("finance.recharge_package.manage");
   const amountRmb = money(input.amountRmb);
   const bonusLockeCoin = money(input.bonusLockeCoin);
   if (amountRmb <= 0) throw new Error("充值金额必须大于 0");
@@ -4181,6 +4303,7 @@ export function adminUpsertRechargePackage(input: {
 }
 
 export function adminSetRechargePackageStatus(packageId: string, status: RechargePackage["status"]): RechargePackage {
+  requirePermission("finance.recharge_package.manage");
   return updateStore((store) => {
     const item = store.recharge_packages.find((entry) => entry.id === packageId);
     if (!item) throw new Error("充值套餐不存在");
@@ -4192,6 +4315,7 @@ export function adminSetRechargePackageStatus(packageId: string, status: Recharg
 }
 
 export function adminDeleteRechargePackage(packageId: string): RechargePackage {
+  requirePermission("finance.recharge_package.manage");
   return updateStore((store) => {
     const item = store.recharge_packages.find((entry) => entry.id === packageId);
     if (!item) throw new Error("充值套餐不存在");
@@ -4312,6 +4436,7 @@ export function adminCreateWithdrawRequest(input: {
   receiveInfo?: string;
   remark?: string;
 }): WithdrawRequest {
+  requirePermission("finance.withdraw.approve");
   const amount = money(input.amountLockeCoin);
   if (amount <= 0) throw new Error("提现金额必须大于 0");
   return updateStore((store) => {
@@ -4414,6 +4539,11 @@ export function createWithdrawRequestAsCurrentWorker(input: {
 }
 
 export function adminUpdateWithdrawStatus(withdrawId: string, status: WithdrawStatus, remark?: string): WithdrawRequest {
+  const normalizedPermissionStatus: WithdrawStatus = status === "completed" ? "paid" : status;
+  if (normalizedPermissionStatus === "approved") requirePermission("finance.withdraw.approve");
+  else if (normalizedPermissionStatus === "rejected") requirePermission("finance.withdraw.reject");
+  else if (normalizedPermissionStatus === "paid") requirePermission("finance.withdraw.mark_paid");
+  else requirePermission("finance.withdraw.approve");
   return updateStore((store) => {
     const request = store.withdraw_requests.find((item) => item.id === withdrawId);
     if (!request) throw new Error("提现申请不存在");

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminUpdateAfterSaleOrder, adminUpdateOrderComplaint, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminUpdateAfterSaleOrder, adminUpdateOrderComplaint, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { AfterSaleOrder, OrderComplaint, StoreShape, SupportTicketStatus } from "@/lib/types";
 
 type Row =
@@ -35,6 +35,7 @@ export default function AdminDisputesPage() {
   }, [keyword, kind, status, store.aftersale_orders, store.order_complaints]);
 
   const selected = rows.find((row) => `${row.kind}:${row.item.id}` === selectedKey) ?? rows[0] ?? null;
+  const canHandleComplaint = hasPermission("feedback.complaints.handle");
 
   const run = (action: () => void, text: string) => {
     setMessage("");
@@ -135,10 +136,10 @@ export default function AdminDisputesPage() {
               <textarea className="min-h-32 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold outline-none" value={reply || selected.item.adminReply || ""} onChange={(event) => setReply(event.target.value)} placeholder="填写平台处理说明" />
               {message ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">{message}</p> : null}
               <div className="grid grid-cols-2 gap-2">
-                <button className="rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700" onClick={() => update("processing")}>处理中</button>
-                <button className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-black text-emerald-700" onClick={() => update("resolved")}>{selected.kind === "aftersale" ? "同意" : "已解决"}</button>
-                <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-700" onClick={() => update("rejected")}>拒绝</button>
-                <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-600" onClick={() => update("closed")}>关闭</button>
+                {canHandleComplaint ? <button className="rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700" onClick={() => update("processing")}>处理中</button> : null}
+                {canHandleComplaint ? <button className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-black text-emerald-700" onClick={() => update("resolved")}>{selected.kind === "aftersale" ? "同意" : "已解决"}</button> : null}
+                {canHandleComplaint ? <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-700" onClick={() => update("rejected")}>拒绝</button> : null}
+                {canHandleComplaint ? <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-600" onClick={() => update("closed")}>关闭</button> : <span className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span>}
               </div>
             </div>
           ) : (

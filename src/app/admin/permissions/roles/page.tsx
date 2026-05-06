@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
-import { adminDeleteRole, adminUpdateRolePermissions, adminUpsertRole, readStore } from "@/lib/store";
+import { adminDeleteRole, adminUpdateRolePermissions, adminUpsertRole, hasPermission, readStore } from "@/lib/store";
 import type { AdminMenu, AdminRole, StoreShape } from "@/lib/types";
 
 type RoleForm = {
@@ -32,6 +32,10 @@ export default function AdminPermissionRolesPage() {
       return matchKeyword && matchCode && matchDescription;
     });
   }, [store.admin_roles, keyword, code, description]);
+  const canCreate = hasPermission("permissions.roles.create");
+  const canEdit = hasPermission("permissions.roles.edit");
+  const canDelete = hasPermission("permissions.roles.delete");
+  const canAssign = hasPermission("permissions.assign");
 
   const reload = () => setStore(readStore());
 
@@ -88,7 +92,7 @@ export default function AdminPermissionRolesPage() {
 
       <AdminCard className="mt-4 p-5">
         <div className="mb-4 flex items-center justify-between">
-          <button className="admin-button-secondary" onClick={() => setEditing(emptyForm)}>新增角色</button>
+          {canCreate ? <button className="admin-button-secondary" onClick={() => setEditing(emptyForm)}>新增角色</button> : <button className="admin-button-secondary text-slate-400" title="无权限操作" disabled>新增角色</button>}
           <p className="text-xs font-bold text-slate-400">共 {roles.length} 条</p>
         </div>
         <div className="overflow-x-auto">
@@ -115,9 +119,10 @@ export default function AdminPermissionRolesPage() {
                   <td>{formatTime(role.createdAt)}</td>
                   <td>
                     <div className="flex gap-3">
-                      <button className="admin-link" onClick={() => setEditing({ id: role.id, name: role.name, code: role.code, description: role.description ?? "", status: role.status })}>编辑</button>
-                      <button className="admin-link text-amber-600" onClick={() => openAssign(role)}>分配权限</button>
-                      <button className="admin-link text-rose-600" onClick={() => deleteRole(role)}>删除</button>
+                      {canEdit ? <button className="admin-link" onClick={() => setEditing({ id: role.id, name: role.name, code: role.code, description: role.description ?? "", status: role.status })}>编辑</button> : null}
+                      {canAssign ? <button className="admin-link text-amber-600" onClick={() => openAssign(role)}>分配权限</button> : null}
+                      {canDelete ? <button className="admin-link text-rose-600" onClick={() => deleteRole(role)}>删除</button> : null}
+                      {!canEdit && !canAssign && !canDelete ? <span className="text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span> : null}
                     </div>
                   </td>
                 </tr>
@@ -128,7 +133,7 @@ export default function AdminPermissionRolesPage() {
         </div>
       </AdminCard>
 
-      {editing ? (
+      {editing && (editing.id ? canEdit : canCreate) ? (
         <div className="admin-modal-backdrop">
           <form onSubmit={submitRole} className="admin-modal w-full max-w-2xl">
             <div className="admin-modal-title">
@@ -149,7 +154,7 @@ export default function AdminPermissionRolesPage() {
         </div>
       ) : null}
 
-      {assigning ? (
+      {assigning && canAssign ? (
         <div className="admin-modal-backdrop">
           <div className="admin-modal w-full max-w-3xl">
             <div className="admin-modal-title">

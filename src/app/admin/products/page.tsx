@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminSetProductStatus, adminSoftDeleteProduct, formatCurrency, isProductActive, productStatusLabel, readStore } from "@/lib/store";
+import { adminSetProductStatus, adminSoftDeleteProduct, formatCurrency, hasPermission, isProductActive, productStatusLabel, readStore } from "@/lib/store";
 import type { ProductCategory, ProductStatus, ServicePort, StoreShape } from "@/lib/types";
 
 const topCategories: Array<ProductCategory | "全部"> = ["全部", "异色专区", "PVP专区", "陪玩专区", "资源专区"];
@@ -41,6 +41,12 @@ export default function AdminProductsPage() {
         return b.createdAt.localeCompare(a.createdAt);
       });
   }, [filters, store.products]);
+  const canCreate = hasPermission("products.create");
+  const canEdit = hasPermission("products.edit");
+  const canDelete = hasPermission("products.delete");
+  const canPublish = hasPermission("products.publish");
+  const canUnpublish = hasPermission("products.unpublish");
+  const canManageCategories = hasPermission("products.category_manage");
 
   const setStatus = (id: string, status: ProductStatus) => {
     setMessage("");
@@ -74,8 +80,8 @@ export default function AdminProductsPage() {
             <p className="mt-1 text-sm font-bold text-slate-400">商品上下架、推荐和排序会同步影响顾客端首页、分类页与商品详情。</p>
           </div>
           <div className="flex gap-2">
-            <Link href="/admin/product-categories" className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">商品分类</Link>
-            <Link href="/admin/product/create" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">新增商品</Link>
+            {canManageCategories ? <Link href="/admin/product-categories" className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-600">商品分类</Link> : <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>商品分类</button>}
+            {canCreate ? <Link href="/admin/product/create" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">新增商品</Link> : <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>新增商品</button>}
           </div>
         </div>
 
@@ -127,9 +133,9 @@ export default function AdminProductsPage() {
                   <td className="px-4 py-4 text-xs font-bold text-slate-500">{new Date(product.createdAt).toLocaleString("zh-CN")}</td>
                   <td className="px-4 py-4">
                     <div className="flex flex-wrap gap-3">
-                      <Link href={`/admin/product/${product.id}`} className="font-black text-blue-600">查看 / 编辑</Link>
-                      <button className="font-black text-slate-600" onClick={() => setStatus(product.id, isProductActive(product) ? "inactive" : "active")}>{isProductActive(product) ? "下架" : "上架"}</button>
-                      <button className="font-black text-rose-500" onClick={() => softDelete(product.id)}>删除</button>
+                      <Link href={`/admin/product/${product.id}`} className="font-black text-blue-600">{canEdit ? "查看 / 编辑" : "查看"}</Link>
+                      {(isProductActive(product) ? canUnpublish : canPublish) ? <button className="font-black text-slate-600" onClick={() => setStatus(product.id, isProductActive(product) ? "inactive" : "active")}>{isProductActive(product) ? "下架" : "上架"}</button> : null}
+                      {canDelete ? <button className="font-black text-rose-500" onClick={() => softDelete(product.id)}>删除</button> : null}
                       <button className="font-black text-slate-400" onClick={() => alert("复制商品功能后续完善")}>复制商品</button>
                     </div>
                   </td>

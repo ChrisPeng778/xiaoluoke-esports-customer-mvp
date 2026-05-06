@@ -14,6 +14,7 @@ import {
   adminUpdateWorkerLevel,
   formatRock,
   formatTime,
+  hasPermission,
   readStore,
   workerLevelLabel,
 } from "@/lib/store";
@@ -38,6 +39,12 @@ export default function AdminWorkerDetailPage() {
   const orders = store.orders.filter((order) => order.workerId === params.id || order.specifiedWorkerId === params.id);
   const ledger = store.wallet_ledger.filter((entry) => entry.userId === params.id);
   const withdrawals = store.withdraw_requests.filter((item) => item.workerId === params.id);
+  const canEdit = hasPermission("workers.edit");
+  const canFreeze = hasPermission("workers.freeze");
+  const canUnfreeze = hasPermission("workers.unfreeze");
+  const canAdjustDeposit = hasPermission("workers.deposit_adjust");
+  const canAdjustBalance = hasPermission("workers.balance_adjust");
+  const canSetCommission = hasPermission("workers.commission_set");
 
   const run = (action: () => void, success: string) => {
     setMessage("");
@@ -54,7 +61,10 @@ export default function AdminWorkerDetailPage() {
     return <AdminLayout title="接单员详情"><AdminCard className="p-8 text-center font-bold text-slate-400">接单员不存在</AdminCard></AdminLayout>;
   }
 
-  const adjust = () => run(() => adminAdjustWallet({ userId: worker.id, direction, amount: Number(amount), reason }), "洛克贝调整成功");
+  const adjust = () => {
+    if (!confirm("确定调整该接单员洛克贝余额吗？")) return;
+    run(() => adminAdjustWallet({ userId: worker.id, direction, amount: Number(amount), reason }), "洛克贝调整成功");
+  };
 
   return (
     <AdminLayout title="接单员详情">
@@ -129,23 +139,24 @@ export default function AdminWorkerDetailPage() {
           <AdminCard className="p-5">
             <h3 className="text-lg font-black">管理员操作</h3>
             <div className="mt-4 grid gap-3">
-              <select className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold" value={worker.level} onChange={(event) => run(() => adminUpdateWorkerLevel(worker.id, event.target.value as WorkerLevel), "等级已修改")}>
+              <select className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold" value={worker.level} onChange={(event) => run(() => adminUpdateWorkerLevel(worker.id, event.target.value as WorkerLevel), "等级已修改")} disabled={!canEdit} title={canEdit ? undefined : "无权限操作"}>
                 {levels.map((level) => <option key={level}>{level}</option>)}
               </select>
-              <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => alert("编辑资料后续会开放更多字段，目前请接单员端自行维护昵称、头像和说明。")}>编辑资料</button>
-              <button className="h-11 rounded-xl border border-amber-200 bg-amber-50 text-sm font-black text-amber-700" onClick={() => run(() => adminPayWorkerDeposit(worker.id, 100), "已代缴保证金")}>代缴保证金</button>
-              <div className="flex gap-2">
+              {canEdit ? <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => alert("编辑资料后续会开放更多字段，目前请接单员端自行维护昵称、头像和说明。")}>编辑资料</button> : null}
+              {canAdjustDeposit ? <button className="h-11 rounded-xl border border-amber-200 bg-amber-50 text-sm font-black text-amber-700" onClick={() => { if (!confirm("确定代缴 100 洛克贝保证金吗？")) return; run(() => adminPayWorkerDeposit(worker.id, 100), "已代缴保证金"); }}>代缴保证金</button> : null}
+              {canSetCommission ? <div className="flex gap-2">
                 <input className="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm" placeholder="平台抽成 %" value={commission} onChange={(event) => setCommission(event.target.value)} />
                 <button className="rounded-xl bg-blue-600 px-3 text-sm font-black text-white" onClick={() => run(() => adminUpdateWorkerCommission(worker.id, Number(commission)), "抽成已设置")}>设置</button>
-              </div>
-              <button className={`h-11 rounded-xl text-sm font-black text-white ${worker.status === "normal" ? "bg-rose-600" : "bg-emerald-600"}`} onClick={() => run(() => adminSetWorkerFrozen(worker.id, worker.status === "normal"), worker.status === "normal" ? "已冻结接单员" : "已解冻接单员")}>
+              </div> : null}
+              {(worker.status === "normal" ? canFreeze : canUnfreeze) ? <button className={`h-11 rounded-xl text-sm font-black text-white ${worker.status === "normal" ? "bg-rose-600" : "bg-emerald-600"}`} onClick={() => { if (!confirm(`确定${worker.status === "normal" ? "冻结" : "解冻"}接单员「${worker.name}」吗？`)) return; run(() => adminSetWorkerFrozen(worker.id, worker.status === "normal"), worker.status === "normal" ? "已冻结接单员" : "已解冻接单员"); }}>
                 {worker.status === "normal" ? "冻结接单员" : "解冻接单员"}
-              </button>
+              </button> : null}
+              {!canEdit && !canAdjustDeposit && !canSetCommission && !(worker.status === "normal" ? canFreeze : canUnfreeze) ? <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</p> : null}
               {message ? <p className="rounded-xl bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700">{message}</p> : null}
             </div>
           </AdminCard>
 
-          <AdminCard className="p-5">
+          {canAdjustBalance ? <AdminCard className="p-5">
             <h3 className="text-lg font-black">余额调整</h3>
             <div className="mt-4 grid gap-3">
               <select className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold" value={direction} onChange={(event) => setDirection(event.target.value as "in" | "out")}>
@@ -156,7 +167,7 @@ export default function AdminWorkerDetailPage() {
               <textarea className="min-h-20 rounded-xl border border-slate-200 px-3 py-2 text-sm" placeholder="原因" value={reason} onChange={(event) => setReason(event.target.value)} />
               <button className="h-11 rounded-xl bg-blue-600 text-sm font-black text-white" onClick={adjust}>确认调整</button>
             </div>
-          </AdminCard>
+          </AdminCard> : <AdminCard className="p-5"><h3 className="text-lg font-black">余额调整</h3><p className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</p></AdminCard>}
         </aside>
       </section>
     </AdminLayout>

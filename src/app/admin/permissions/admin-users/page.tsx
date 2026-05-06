@@ -2,7 +2,7 @@
 
 import { FormEvent, ReactNode, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
-import { adminDeleteAdminUser, adminToggleAdminUserStatus, adminUpsertAdminUser, getCurrentAdminSession, readStore } from "@/lib/store";
+import { adminDeleteAdminUser, adminToggleAdminUserStatus, adminUpsertAdminUser, getCurrentAdminSession, hasPermission, readStore } from "@/lib/store";
 import type { AdminUser, StoreShape } from "@/lib/types";
 
 type UserForm = {
@@ -24,6 +24,9 @@ export default function AdminUsersPermissionPage() {
   const [status, setStatus] = useState<"" | AdminUser["status"]>("");
   const [editing, setEditing] = useState<UserForm | null>(null);
   const session = getCurrentAdminSession();
+  const canCreate = hasPermission("permissions.admin_users.create");
+  const canEdit = hasPermission("permissions.admin_users.edit");
+  const canDelete = hasPermission("permissions.admin_users.delete");
 
   const rows = useMemo(() => {
     return store.admin_users.filter((user) => {
@@ -86,7 +89,7 @@ export default function AdminUsersPermissionPage() {
 
       <AdminCard className="mt-4 p-5">
         <div className="mb-4 flex items-center justify-between">
-          <button className="admin-button-secondary" onClick={() => setEditing(emptyForm)}>新增管理员</button>
+          {canCreate ? <button className="admin-button-secondary" onClick={() => setEditing(emptyForm)}>新增管理员</button> : <button className="admin-button-secondary text-slate-400" title="无权限操作" disabled>新增管理员</button>}
           <p className="text-xs font-bold text-slate-400">共 {rows.length} 条</p>
         </div>
         <div className="overflow-x-auto">
@@ -119,9 +122,10 @@ export default function AdminUsersPermissionPage() {
                   <td>{formatTime(user.createdAt)}</td>
                   <td>
                     <div className="flex gap-3">
-                      <button className="admin-link" onClick={() => setEditing({ id: user.id, name: user.name, avatarUrl: user.avatarUrl ?? "", username: user.username, password: "", roleIds: user.roleIds, status: user.status })}>编辑</button>
-                      <button className="admin-link text-amber-600" onClick={() => toggleStatus(user)}>{user.status === "enabled" ? "禁用" : "启用"}</button>
-                      <button className="admin-link text-rose-600" onClick={() => deleteUser(user)} disabled={user.id === session?.adminId || user.username === "admin"}>删除</button>
+                      {canEdit ? <button className="admin-link" onClick={() => setEditing({ id: user.id, name: user.name, avatarUrl: user.avatarUrl ?? "", username: user.username, password: "", roleIds: user.roleIds, status: user.status })}>编辑</button> : null}
+                      {canEdit ? <button className="admin-link text-amber-600" onClick={() => toggleStatus(user)}>{user.status === "enabled" ? "禁用" : "启用"}</button> : null}
+                      {canDelete ? <button className="admin-link text-rose-600 disabled:text-slate-300" onClick={() => deleteUser(user)} disabled={user.id === session?.adminId || user.username === "admin"} title={user.id === session?.adminId || user.username === "admin" ? "内置或当前管理员不能删除" : undefined}>删除</button> : null}
+                      {!canEdit && !canDelete ? <span className="text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span> : null}
                     </div>
                   </td>
                 </tr>
@@ -132,7 +136,7 @@ export default function AdminUsersPermissionPage() {
         </div>
       </AdminCard>
 
-      {editing ? (
+      {editing && (editing.id ? canEdit : canCreate) ? (
         <div className="admin-modal-backdrop">
           <form onSubmit={submit} className="admin-modal w-full max-w-2xl">
             <div className="admin-modal-title">

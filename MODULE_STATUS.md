@@ -27,7 +27,7 @@
 | 管理端接单员管理 | 部分完成 | `/admin/workers`、`/admin/worker/[id]` 存在，store 有资料、冻结、保证金、余额、抽成函数。 | Drawer 五个 Tab、退保/提现记录、统一抽成 UI 需人工确认。 |
 | 管理端财务模块 | 部分完成 | `/admin/finance/payments`、`recharge-packages`、`tips`、`ledger`、`withdrawals` 存在，store 有充值套餐、提现、支付视图函数。 | 提现冻结余额、充值套餐同步顾客端、支付详情弹窗需确认。 |
 | 管理端公告管理 | 部分完成 | `/admin/announcements` 存在，store 有公告 CRUD、可见范围、已读和 viewCount。 | 顾客端/接单员端公告弹窗和已读逻辑需人工确认。 |
-| 管理端权限模块 | 部分完成 | `/admin/permissions/roles`、`admin-users`、`menus` 存在，types/store 有 roles/users/menus/session/permission。 | 按钮权限、路由权限、危险操作权限是否全覆盖需确认。 |
+| 管理端权限模块 | 已完成 / 待体验验证 | `/admin/permissions/roles`、`admin-users`、`menus` 存在，types/store 有 roles/users/menus/session/permission。管理端权限与危险操作一致性已完成：危险操作权限已补齐，UI 层已对无权限按钮隐藏或 disabled，执行层已加 `requirePermission` / `requireAnyPermission`。已覆盖订单、用户、接单员、商品、分类、财务、提现、反馈、投诉、售后、评价、角色、管理员等危险操作。新增或补齐权限点包括 `orders.restore`、`orders.mark_issue`、`orders.update_status`、`orders.delete`、`users.export`、`workers.export`、`finance.wallet.adjust`、`feedback.reviews.hide`、`feedback.reviews.restore`、`permissions.roles.create/edit/delete`、`permissions.admin_users.create/edit/delete` 等。 | `orders.delete` 只补权限点，未新增删除订单业务函数；导出仍是 MVP 占位；`/admin/permissions/menus` 仍按 `permissions.menus.manage` 控制，未拆更细权限。 |
 | 管理端设置模块 | 已完成 / 待体验验证 | `/admin/settings/basic` 到 `/admin/settings/resources` 已新增或完善，统一写入 `StoreShape.system_settings`，保存设置写 `admin_logs`。 | 企业微信客服、公众号 H5、微信支付、提现、短信、资源上传仅预留接口和字段，不接真实服务。 |
 | 投诉 / 反馈 / 售后 / 评价 | 已完成 / 待体验验证 | `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入 `xiaoluoke_customer_mvp_store`；订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作已写入 `admin_logs`，所有新增和处理动作已触发 `xiaoluoke_store_updated`。 | 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位。 |
 | API 结构 | 部分完成 | `src/app/api` 下有 auth/customer API 占位，并新增企业微信客服、微信支付回调、接单员提现占位入口。 | 当前仍以 localStorage 为主，API 未接数据库，且不接真实第三方服务。 |
@@ -39,5 +39,6 @@
 1. 设置模块统一数据源已完成。
 2. 会员等级配置并入 shared store 已完成。
 3. 投诉 / 反馈 / 售后 / 评价闭环已完成。
-4. 最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
-5. 下一轮建议做“三端整体联动检查与修复”，不要直接开发新大功能。
+4. 管理端权限与危险操作一致性已完成。
+5. 最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
+6. 下一轮建议修“订单关闭/恢复/退款与钱包冻结、支付状态、售后投诉标记一致性”，不要直接开发新大功能。

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
-import { adminDeleteRechargePackage, adminSetRechargePackageStatus, adminUpsertRechargePackage, formatCurrency, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminDeleteRechargePackage, adminSetRechargePackageStatus, adminUpsertRechargePackage, formatCurrency, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { RechargePackage, StoreShape } from "@/lib/types";
 
 type Form = { id?: string; sortOrder: string; amountRmb: string; bonusLockeCoin: string; status: RechargePackage["status"] };
@@ -17,6 +17,7 @@ export default function RechargePackagesPage() {
   const rows = store.recharge_packages
     .filter((item) => !item.deleted && (status === "all" || item.status === status))
     .sort((a, b) => a.sortOrder - b.sortOrder);
+  const canManage = hasPermission("finance.recharge_package.manage");
 
   const refresh = () => setStore(readStore());
   const submit = () => {
@@ -46,7 +47,7 @@ export default function RechargePackagesPage() {
               <option value="active">启用</option>
               <option value="inactive">停用</option>
             </select>
-            <button className="admin-primary" onClick={() => setForm(emptyForm)}>新增套餐</button>
+            {canManage ? <button className="admin-primary" onClick={() => setForm(emptyForm)}>新增套餐</button> : <button className="admin-secondary text-slate-400" title="无权限操作" disabled>新增套餐</button>}
           </div>
         </AdminCard>
         <AdminCard className="overflow-hidden">
@@ -62,9 +63,9 @@ export default function RechargePackagesPage() {
                   <td><AdminBadge tone={item.status === "active" ? "green" : "slate"}>{item.status === "active" ? "启用" : "停用"}</AdminBadge></td>
                   <td>{formatTime(item.createdAt)}</td>
                   <td className="space-x-3">
-                    <button className="admin-link" onClick={() => setForm({ id: item.id, sortOrder: String(item.sortOrder), amountRmb: String(item.amountRmb), bonusLockeCoin: String(item.bonusLockeCoin), status: item.status })}>编辑</button>
-                    <button className="admin-link" onClick={() => { adminSetRechargePackageStatus(item.id, item.status === "active" ? "inactive" : "active"); refresh(); }}>{item.status === "active" ? "停用" : "启用"}</button>
-                    <button className="text-sm font-black text-rose-500" onClick={() => { adminDeleteRechargePackage(item.id); refresh(); }}>删除</button>
+                    {canManage ? <button className="admin-link" onClick={() => setForm({ id: item.id, sortOrder: String(item.sortOrder), amountRmb: String(item.amountRmb), bonusLockeCoin: String(item.bonusLockeCoin), status: item.status })}>编辑</button> : null}
+                    {canManage ? <button className="admin-link" onClick={() => { adminSetRechargePackageStatus(item.id, item.status === "active" ? "inactive" : "active"); refresh(); }}>{item.status === "active" ? "停用" : "启用"}</button> : null}
+                    {canManage ? <button className="text-sm font-black text-rose-500" onClick={() => { if (!confirm("确定删除该充值套餐吗？")) return; adminDeleteRechargePackage(item.id); refresh(); }}>删除</button> : <span className="text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span>}
                   </td>
                 </tr>
               ))}
@@ -72,7 +73,7 @@ export default function RechargePackagesPage() {
           </table>
         </AdminCard>
       </div>
-      {form ? (
+      {form && canManage ? (
         <div className="admin-modal-backdrop">
           <div className="admin-modal w-full max-w-xl p-5">
             <div className="mb-4 flex items-center justify-between"><h2 className="text-xl font-black">{form.id ? "编辑充值套餐" : "新增充值套餐"}</h2><button className="admin-close" onClick={() => setForm(null)}>×</button></div>

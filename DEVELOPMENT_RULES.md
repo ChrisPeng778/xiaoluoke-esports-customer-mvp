@@ -84,6 +84,10 @@
 6. 超级管理员不能被删除、禁用、取消超级权限。
 7. 当前登录管理员不能删除或禁用自己。
 8. 权限相关操作必须写入 admin_logs。
+9. 管理端权限与危险操作一致性已完成：危险操作权限已补齐，UI 层已对无权限按钮隐藏或 disabled，执行层已加 `requirePermission` / `requireAnyPermission`。
+10. 已覆盖订单、用户、接单员、商品、分类、财务、提现、反馈、投诉、售后、评价、角色、管理员等危险操作。
+11. 新增或补齐权限点包括 `orders.restore`、`orders.mark_issue`、`orders.update_status`、`orders.delete`、`users.export`、`workers.export`、`finance.wallet.adjust`、`feedback.reviews.hide`、`feedback.reviews.restore`、`permissions.roles.create/edit/delete`、`permissions.admin_users.create/edit/delete` 等。
+12. `orders.delete` 只补权限点，未新增删除订单业务函数；导出仍是 MVP 占位；`/admin/permissions/menus` 仍按 `permissions.menus.manage` 控制，未拆更细权限。
 
 ## 7. 设置模块规则
 
@@ -127,9 +131,10 @@
 1. 设置模块统一数据源已完成。
 2. 会员等级配置并入 shared store 已完成。
 3. 投诉 / 反馈 / 售后 / 评价闭环已完成。
-4. 下一轮建议做“三端整体联动检查与修复”，不要直接开发新大功能。
-5. 联动检查重点：商品、分类、订单、聊天、钱包、接单员、公告、权限、设置、反馈/投诉/售后/评价的跨端同步、统计口径、按钮有效性和占位残留。
-6. 不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+4. 管理端权限与危险操作一致性已完成。
+5. 下一轮建议修“订单关闭/恢复/退款与钱包冻结、支付状态、售后投诉标记一致性”，不要直接开发新大功能。
+6. 联动检查重点：订单关闭、恢复、退款时的冻结余额、可用余额、支付状态、订单状态、售后/投诉标记、聊天系统消息和 `admin_logs` 是否一致。
+7. 不要顺手修真实退款到账、旧提现页、`/customer/must-read`，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
 
 ## 11. 文案与 UI 规则
 

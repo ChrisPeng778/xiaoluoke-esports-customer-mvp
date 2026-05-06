@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
 import { statusText } from "@/lib/status";
-import { formatCurrency, formatTime, money, readStore } from "@/lib/store";
+import { formatCurrency, formatTime, hasPermission, money, readStore } from "@/lib/store";
 import type { Order, StoreShape } from "@/lib/types";
 
 const tabs: Array<{ label: string; value: string }> = [
@@ -72,6 +72,7 @@ export default function AdminOrdersPage() {
   const validOrders = orders.filter((order) => validAovStatuses.has(order.status));
   const aovTotal = money(validOrders.reduce((sum, order) => sum + order.amountRmb, 0));
   const aov = validOrders.length ? money(aovTotal / validOrders.length) : 0;
+  const canCreateOrder = hasPermission("orders.create");
 
   const reset = () => {
     setFilters({ orderNo: "", user: "", worker: "", product: "", gameId: "", gameNickname: "", minAmount: "", maxAmount: "", createdAt: "", status: "" });
@@ -87,7 +88,7 @@ export default function AdminOrdersPage() {
             <h2 className="text-xl font-black">订单管理</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">读取顾客端创建、接单员端处理、后台派单创建的真实订单</p>
           </div>
-          <Link href="/admin/orders/create" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">后台派单</Link>
+          {canCreateOrder ? <Link href="/admin/orders/create" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white">后台派单</Link> : <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>后台派单</button>}
         </div>
 
         <div className="mt-5 flex gap-2 overflow-x-auto border-b border-slate-100 pb-2">

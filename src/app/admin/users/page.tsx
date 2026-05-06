@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminUpdateUserRemark, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminSetUserFrozen, adminUpdateUserRemark, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import { statusText } from "@/lib/status";
 import type { StoreShape, User } from "@/lib/types";
 
@@ -43,6 +43,11 @@ export default function AdminUsersPage() {
   }, [store.member_level_settings, store.users]);
 
   const selectedUser = selectedId ? store.users.find((item) => item.id === selectedId) ?? null : null;
+  const canViewDetail = hasPermission("users.view");
+  const canEditUser = hasPermission("users.edit");
+  const canFreezeUser = hasPermission("users.freeze");
+  const canUnfreezeUser = hasPermission("users.unfreeze");
+  const canExportUsers = hasPermission("users.export");
 
   const openDrawer = (user: User) => {
     setSelectedId(user.id);
@@ -61,6 +66,17 @@ export default function AdminUsersPage() {
       setMessage(error instanceof Error ? error.message : "保存失败");
     }
   };
+  const toggleUserFrozen = (user: User) => {
+    const frozen = (user.status ?? "active") === "active";
+    if (!confirm(`确定${frozen ? "冻结" : "解封"}用户「${user.nickname}」吗？`)) return;
+    try {
+      adminSetUserFrozen(user.id, frozen);
+      refresh();
+      setMessage(frozen ? "用户已冻结" : "用户已解封");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "操作失败");
+    }
+  };
 
   return (
     <AdminLayout title="用户列表">
@@ -70,7 +86,10 @@ export default function AdminUsersPage() {
             <h2 className="text-xl font-black">用户管理</h2>
             <p className="mt-1 text-sm font-bold text-slate-400">读取当前顾客端真实用户数据，详情以右侧抽屉展示</p>
           </div>
-          <Link href="/admin/users/member-levels" className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-black text-blue-700">会员等级</Link>
+          <div className="flex gap-2">
+            {canExportUsers ? <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-600" onClick={() => alert("导出功能为 MVP 占位。")}>导出</button> : <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>导出</button>}
+            <Link href="/admin/users/member-levels" className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-2 text-sm font-black text-blue-700">会员等级</Link>
+          </div>
         </div>
 
         <section className="mt-5 grid gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-4 md:grid-cols-5">
@@ -122,7 +141,14 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-4">{formatRock(wallet?.totalSpent ?? 0)}</td>
                     <td className="px-4 py-4"><AdminBadge tone={(user.status ?? "active") === "active" ? "green" : "rose"}>{(user.status ?? "active") === "active" ? "活跃" : "冻结"}</AdminBadge></td>
                     <td className="px-4 py-4 text-slate-500">{formatTime(user.createdAt)}</td>
-                    <td className="px-4 py-4"><button className="font-black text-blue-600" onClick={() => openDrawer(user)}>详情</button></td>
+                    <td className="px-4 py-4">
+                      <div className="flex gap-3">
+                        {canViewDetail ? <button className="font-black text-blue-600" onClick={() => openDrawer(user)}>详情</button> : <button className="font-black text-slate-400" title="无权限操作" disabled>详情</button>}
+                        {(user.status ?? "active") === "active"
+                          ? canFreezeUser ? <button className="font-black text-rose-600" onClick={() => toggleUserFrozen(user)}>冻结</button> : null
+                          : canUnfreezeUser ? <button className="font-black text-emerald-600" onClick={() => toggleUserFrozen(user)}>解封</button> : null}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -142,6 +168,7 @@ export default function AdminUsersPage() {
           setRemark={setRemark}
           message={message}
           saveRemark={saveRemark}
+          canEdit={canEditUser}
           onClose={() => setSelectedId(null)}
         />
       ) : null}
@@ -149,7 +176,7 @@ export default function AdminUsersPage() {
   );
 }
 
-function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, saveRemark, onClose }: {
+function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, saveRemark, canEdit, onClose }: {
   user: User;
   store: StoreShape;
   tab: "overview" | "orders" | "ledger";
@@ -158,6 +185,7 @@ function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, save
   setRemark: (value: string) => void;
   message: string;
   saveRemark: () => void;
+  canEdit: boolean;
   onClose: () => void;
 }) {
   const wallet = store.wallet_accounts.find((item) => item.userId === user.id);
@@ -204,10 +232,10 @@ function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, save
             <Info label="注册时间" value={formatTime(user.createdAt)} />
             <Info label="最后更新" value={formatTime(user.updatedAt)} />
             <label className="md:col-span-2 text-xs font-black text-slate-500">备注
-              <textarea className="mt-2 min-h-24 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold outline-none" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="暂无备注" />
+              <textarea className="mt-2 min-h-24 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold outline-none disabled:text-slate-400" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="暂无备注" disabled={!canEdit} title={canEdit ? undefined : "无权限操作"} />
             </label>
             <div className="md:col-span-2 flex items-center gap-3">
-              <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white" onClick={saveRemark}>保存备注</button>
+              {canEdit ? <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white" onClick={saveRemark}>保存备注</button> : <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>保存备注</button>}
               {message ? <span className="text-sm font-bold text-blue-600">{message}</span> : null}
             </div>
           </section>

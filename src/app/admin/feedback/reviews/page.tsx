@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminUpdateOrderReview, formatTime, readStore } from "@/lib/store";
+import { adminUpdateOrderReview, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { OrderReviewStatus, StoreShape } from "@/lib/types";
 
 export default function AdminReviewsPage() {
@@ -22,6 +22,8 @@ export default function AdminReviewsPage() {
       .filter((item) => !clean || `${item.title}${item.content}${item.customerName}${item.workerName}${item.orderNo}`.includes(clean))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [keyword, status, store.order_reviews]);
+  const canHide = hasPermission("feedback.reviews.hide");
+  const canRestore = hasPermission("feedback.reviews.restore");
 
   const run = (reviewId: string, nextStatus: OrderReviewStatus) => {
     setMessage("");
@@ -85,8 +87,9 @@ export default function AdminReviewsPage() {
                   <td className="px-4 py-3 font-bold text-slate-500">{formatTime(item.createdAt)}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-2">
-                      <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-black text-rose-700" onClick={() => run(item.id, "hidden")}>隐藏</button>
-                      <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-black text-emerald-700" onClick={() => run(item.id, "visible")}>恢复</button>
+                      {canHide ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-black text-rose-700" onClick={() => run(item.id, "hidden")}>隐藏</button> : null}
+                      {canRestore ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-black text-emerald-700" onClick={() => run(item.id, "visible")}>恢复</button> : null}
+                      {!canHide && !canRestore ? <span className="text-xs font-bold text-slate-400" title="无权限操作">无权限操作</span> : null}
                     </div>
                   </td>
                 </tr>

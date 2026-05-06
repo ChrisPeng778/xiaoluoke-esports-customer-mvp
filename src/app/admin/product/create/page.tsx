@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { useCallback, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminCreateProduct, formatCurrency, readStore } from "@/lib/store";
+import { adminCreateProduct, formatCurrency, hasPermission, readStore } from "@/lib/store";
 import type { ProductCategory, ProductWorkerIncomeType, ServicePort, StoreShape } from "@/lib/types";
 
 const categories: ProductCategory[] = ["异色专区", "PVP专区", "陪玩专区", "资源专区"];
@@ -48,6 +48,7 @@ export default function AdminProductCreatePage() {
   });
   const refresh = useCallback(() => setStore(readStore()), []);
   useStoreSync(refresh, true, 2000);
+  const canCreate = hasPermission("products.create");
 
   const submit = () => {
     setMessage("");
@@ -98,7 +99,7 @@ export default function AdminProductCreatePage() {
           </div>
           <div className="flex gap-2">
             <Link href="/admin/products" className="rounded-xl border border-slate-200 px-5 py-2 text-sm font-black text-slate-600">取消</Link>
-            <button className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-black text-white" onClick={submit}>保存商品</button>
+            {canCreate ? <button className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-black text-white" onClick={submit}>保存商品</button> : <button className="rounded-xl border border-slate-200 px-5 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>保存商品</button>}
           </div>
         </div>
         {message ? <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-black text-rose-600">{message}</p> : null}

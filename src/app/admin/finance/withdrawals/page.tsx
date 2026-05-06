@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
-import { adminCreateWithdrawRequest, adminUpdateWithdrawStatus, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminCreateWithdrawRequest, adminUpdateWithdrawStatus, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { StoreShape, WithdrawRequest, WithdrawStatus } from "@/lib/types";
 
 const tabs: Array<["all" | WithdrawStatus, string]> = [["all", "全部"], ["pending", "待审核"], ["approved", "已审核"], ["paid", "已打款"], ["rejected", "已拒绝"]];
@@ -20,6 +20,7 @@ export default function FinanceWithdrawalsPage() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   const refresh = () => setStore(readStore());
   const run = (id: string, status: WithdrawStatus) => {
+    if (!confirm(`确定${statusText(status)}该提现申请吗？`)) return;
     try {
       adminUpdateWithdrawStatus(id, status, "管理员财务审核处理");
       refresh();
@@ -27,6 +28,10 @@ export default function FinanceWithdrawalsPage() {
       setMessage(error instanceof Error ? error.message : "处理失败");
     }
   };
+  const canSubmit = hasPermission("finance.withdraw.approve");
+  const canApprove = hasPermission("finance.withdraw.approve");
+  const canReject = hasPermission("finance.withdraw.reject");
+  const canPay = hasPermission("finance.withdraw.mark_paid");
 
   return (
     <AdminLayout title="提现审核">
@@ -37,7 +42,7 @@ export default function FinanceWithdrawalsPage() {
           </div>
           <div className="mt-4 flex flex-wrap gap-3">
             <input className="admin-field max-w-md" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="接单员 ID / 提现单号" />
-            <button className="admin-primary" onClick={() => setFormOpen(true)}>代提交</button>
+            {canSubmit ? <button className="admin-primary" onClick={() => setFormOpen(true)}>代提交</button> : <button className="admin-secondary text-slate-400" title="无权限操作" disabled>代提交</button>}
             <button className="admin-secondary" onClick={() => { setKeyword(""); refresh(); }}>重置 / 刷新</button>
           </div>
           {message ? <p className="mt-3 text-sm font-bold text-rose-500">{message}</p> : null}
@@ -58,9 +63,9 @@ export default function FinanceWithdrawalsPage() {
                   <td>{formatTime(item.createdAt)}</td>
                   <td className="space-x-3">
                     <button className="admin-link" onClick={() => setSelected(item)}>详情</button>
-                    {item.status === "pending" ? <button className="admin-link" onClick={() => run(item.id, "approved")}>通过审核</button> : null}
-                    {item.status === "pending" ? <button className="text-sm font-black text-rose-500" onClick={() => run(item.id, "rejected")}>拒绝</button> : null}
-                    {item.status === "approved" ? <button className="admin-link" onClick={() => run(item.id, "paid")}>标记已打款</button> : null}
+                    {item.status === "pending" && canApprove ? <button className="admin-link" onClick={() => run(item.id, "approved")}>通过审核</button> : null}
+                    {item.status === "pending" && canReject ? <button className="text-sm font-black text-rose-500" onClick={() => run(item.id, "rejected")}>拒绝</button> : null}
+                    {item.status === "approved" && canPay ? <button className="admin-link" onClick={() => run(item.id, "paid")}>标记已打款</button> : null}
                   </td>
                 </tr>
               ))}
@@ -70,7 +75,7 @@ export default function FinanceWithdrawalsPage() {
         </AdminCard>
       </div>
       {selected ? <Detail item={selected} onClose={() => setSelected(null)} /> : null}
-      {formOpen ? <CreateWithdraw store={store} onClose={() => setFormOpen(false)} onDone={() => { setFormOpen(false); refresh(); }} /> : null}
+      {formOpen && canSubmit ? <CreateWithdraw store={store} onClose={() => setFormOpen(false)} onDone={() => { setFormOpen(false); refresh(); }} /> : null}
     </AdminLayout>
   );
 }
@@ -96,6 +101,7 @@ function CreateWithdraw({ store, onClose, onDone }: { store: StoreShape; onClose
   const [remark, setRemark] = useState("");
   const [message, setMessage] = useState("");
   const submit = () => {
+    if (!confirm("确定代接单员提交提现吗？提交后会冻结对应余额。")) return;
     try {
       adminCreateWithdrawRequest({ workerId, amountLockeCoin: Number(amount), feeLockeCoin: Number(fee || 0), receiveInfo, remark });
       onDone();

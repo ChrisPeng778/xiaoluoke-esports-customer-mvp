@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminDeleteFeedbackTicket, adminUpdateFeedbackTicket, formatTime, readStore } from "@/lib/store";
+import { adminDeleteFeedbackTicket, adminUpdateFeedbackTicket, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { FeedbackTicket, StoreShape, SupportTicketStatus } from "@/lib/types";
 
 const typeText: Record<FeedbackTicket["type"], string> = {
@@ -34,6 +34,8 @@ export default function AdminFeedbackPage() {
   }, [keyword, status, store.feedback_tickets, type]);
 
   const selected = rows.find((item) => item.id === selectedId) ?? rows[0] ?? null;
+  const canReply = hasPermission("feedback.feedback.reply");
+  const canDelete = hasPermission("feedback.feedback.delete");
 
   const run = (action: () => void, text: string) => {
     setMessage("");
@@ -121,10 +123,11 @@ export default function AdminFeedbackPage() {
               <textarea className="min-h-32 w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold outline-none" value={reply || selected.adminReply || ""} onChange={(event) => setReply(event.target.value)} placeholder="填写平台回复" />
               {message ? <p className="rounded-xl bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-700">{message}</p> : null}
               <div className="grid grid-cols-2 gap-2">
-                <button className="rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700" onClick={() => update("processing")}>标记处理中</button>
-                <button className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-black text-emerald-700" onClick={() => update("resolved")}>标记已解决</button>
-                <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-600" onClick={() => update("closed")}>关闭</button>
-                <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-700" onClick={() => run(() => adminDeleteFeedbackTicket(selected.id), "已删除反馈")}>删除</button>
+                {canReply ? <button className="rounded-xl border border-blue-200 px-3 py-2 text-sm font-black text-blue-700" onClick={() => update("processing")}>标记处理中</button> : null}
+                {canReply ? <button className="rounded-xl border border-emerald-200 px-3 py-2 text-sm font-black text-emerald-700" onClick={() => update("resolved")}>标记已解决</button> : null}
+                {canReply ? <button className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-black text-slate-600" onClick={() => update("closed")}>关闭</button> : null}
+                {canDelete ? <button className="rounded-xl border border-rose-200 px-3 py-2 text-sm font-black text-rose-700" onClick={() => { if (!confirm("确定删除该反馈吗？")) return; run(() => adminDeleteFeedbackTicket(selected.id), "已删除反馈"); }}>删除</button> : null}
+                {!canReply && !canDelete ? <span className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span> : null}
               </div>
             </div>
           ) : (

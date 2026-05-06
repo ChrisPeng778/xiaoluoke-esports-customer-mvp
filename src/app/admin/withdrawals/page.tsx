@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminUpdateWithdrawStatus, formatRock, formatTime, readStore } from "@/lib/store";
+import { adminUpdateWithdrawStatus, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
 import type { StoreShape, WithdrawStatus } from "@/lib/types";
 
 export default function AdminWithdrawalsPage() {
@@ -11,8 +11,12 @@ export default function AdminWithdrawalsPage() {
   const [message, setMessage] = useState("");
   const refresh = useCallback(() => setStore(readStore()), []);
   useStoreSync(refresh, true, 2000);
+  const canApprove = hasPermission("finance.withdraw.approve");
+  const canReject = hasPermission("finance.withdraw.reject");
+  const canPay = hasPermission("finance.withdraw.mark_paid");
 
   const run = (id: string, status: WithdrawStatus) => {
+    if (!confirm("确定处理该提现申请吗？")) return;
     setMessage("");
     try {
       adminUpdateWithdrawStatus(id, status, "管理员后台处理");
@@ -50,7 +54,7 @@ export default function AdminWithdrawalsPage() {
                     <td className="px-4 py-4"><AdminBadge>{request.status}</AdminBadge></td>
                     <td className="px-4 py-4 text-slate-500">{formatTime(request.createdAt)}</td>
                     <td className="px-4 py-4">{request.adminRemark ?? "-"}</td>
-                    <td className="px-4 py-4"><div className="flex gap-2"><button onClick={() => run(request.id, "approved")} className="font-black text-blue-600">通过</button><button onClick={() => run(request.id, "rejected")} className="font-black text-rose-600">拒绝</button><button onClick={() => run(request.id, "completed")} className="font-black text-emerald-600">已处理</button></div></td>
+                    <td className="px-4 py-4"><div className="flex gap-2">{canApprove ? <button onClick={() => run(request.id, "approved")} className="font-black text-blue-600">通过</button> : null}{canReject ? <button onClick={() => run(request.id, "rejected")} className="font-black text-rose-600">拒绝</button> : null}{canPay ? <button onClick={() => run(request.id, "completed")} className="font-black text-emerald-600">已处理</button> : null}{!canApprove && !canReject && !canPay ? <span className="text-sm font-bold text-slate-400" title="无权限操作">无权限操作</span> : null}</div></td>
                   </tr>
                 );
               })}

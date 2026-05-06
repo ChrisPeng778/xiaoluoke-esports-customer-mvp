@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminCreateOrder, formatCurrency, isProductActive, readStore } from "@/lib/store";
+import { adminCreateOrder, formatCurrency, hasPermission, isProductActive, readStore } from "@/lib/store";
 import type { ProductCategory, ServicePort, StoreShape } from "@/lib/types";
 
 const categories: ProductCategory[] = ["异色专区", "PVP专区", "陪玩专区", "资源专区"];
@@ -64,12 +64,15 @@ export default function AdminCreateOrderPage() {
 
   const selectedProduct = store.products.find((item) => item.id === form.productId);
   const selectedWorker = store.workers.find((item) => item.id === form.workerId);
+  const canCreate = hasPermission("orders.create");
+  const canAssign = hasPermission("orders.assign");
   const quantity = Math.max(1, Number(form.quantity) || 1);
   const unitPrice = form.productMode === "existing" ? selectedProduct?.priceRmb ?? 0 : Number(form.priceRmb) || 0;
   const total = unitPrice * quantity;
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    if (!confirm("确定提交后台派单订单吗？订单会视为已收款。")) return;
     setMessage("");
     try {
       const order = adminCreateOrder({
@@ -150,8 +153,8 @@ export default function AdminCreateOrderPage() {
           <AdminCard className="overflow-hidden">
             <SectionTitle number="3" title="指定接单员（可选）" desc="留空则进入接单员端订单大厅" />
             <div className="space-y-4 p-5">
-              <input className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" placeholder="输入接单员昵称或等级搜索" value={workerSearch} onChange={(event) => setWorkerSearch(event.target.value)} />
-              <select className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm" value={form.workerId} onChange={(event) => setForm({ ...form, workerId: event.target.value })}>
+              <input className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:text-slate-400" placeholder="输入接单员昵称或等级搜索" value={workerSearch} onChange={(event) => setWorkerSearch(event.target.value)} disabled={!canAssign} title={canAssign ? undefined : "无权限操作"} />
+              <select className="h-11 w-full rounded-xl border border-slate-200 px-3 text-sm disabled:text-slate-400" value={form.workerId} onChange={(event) => setForm({ ...form, workerId: event.target.value })} disabled={!canAssign} title={canAssign ? undefined : "无权限操作"}>
                 <option value="">不指定，全员可抢</option>
                 {workers.map((worker) => <option key={worker.id} value={worker.id}>{worker.name} · {worker.level} · {worker.onlineStatus === "online" ? "在线" : "离线"}</option>)}
               </select>
@@ -176,7 +179,7 @@ export default function AdminCreateOrderPage() {
           <div className="flex items-center justify-end gap-3 rounded-2xl bg-white p-5">
             {message ? <p className="mr-auto text-sm font-bold text-rose-600">{message}</p> : <p className="mr-auto text-sm font-bold text-slate-400">提交后订单视为已收款，直接进入待接单或服务中。</p>}
             <Link href="/admin/orders" className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-black text-slate-600">取消</Link>
-            <button className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white">提交订单</button>
+            {canCreate ? <button className="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-black text-white">提交订单</button> : <button className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-black text-slate-400" title="无权限操作" disabled>提交订单</button>}
           </div>
         </div>
 

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminSetProductStatus, adminSoftDeleteProduct, adminUpdateProduct, formatCurrency, isProductActive, money, productStatusLabel, readStore } from "@/lib/store";
+import { adminSetProductStatus, adminSoftDeleteProduct, adminUpdateProduct, formatCurrency, hasPermission, isProductActive, money, productStatusLabel, readStore } from "@/lib/store";
 import type { Product, ProductCategory, ProductStatus, ProductWorkerIncomeType, ServicePort, StoreShape } from "@/lib/types";
 
 const topCategories: ProductCategory[] = ["异色专区", "PVP专区", "陪玩专区", "资源专区"];
@@ -55,6 +55,10 @@ export default function AdminProductDetailPage() {
   const [form, setForm] = useState<ProductForm>(() => productToForm(product));
   const preview = formToProduct(product, form);
   const stats = useMemo(() => productStats(store, product?.id), [product?.id, store]);
+  const canEdit = hasPermission("products.edit");
+  const canDelete = hasPermission("products.delete");
+  const canPublish = hasPermission("products.publish");
+  const canUnpublish = hasPermission("products.unpublish");
 
   const save = () => {
     if (!product) return;
@@ -94,9 +98,9 @@ export default function AdminProductDetailPage() {
               <AdminBadge tone={isProductActive(preview) ? "green" : "slate"}>{productStatusLabel(preview.status)}</AdminBadge>
             </div>
             <div className="flex gap-2">
-              <button className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-black text-white" onClick={save}>保存</button>
-              <button className="rounded-xl border border-slate-200 px-5 py-2 text-sm font-black text-slate-600" onClick={toggleStatus}>{isProductActive(product) ? "下架" : "上架"}</button>
-              <button className="rounded-xl bg-rose-500 px-5 py-2 text-sm font-black text-white" onClick={remove}>删除</button>
+              {canEdit ? <button className="rounded-xl bg-blue-600 px-5 py-2 text-sm font-black text-white" onClick={save}>保存</button> : <button className="rounded-xl border border-slate-200 px-5 py-2 text-sm font-black text-slate-400" title="无权限操作" disabled>保存</button>}
+              {(isProductActive(product) ? canUnpublish : canPublish) ? <button className="rounded-xl border border-slate-200 px-5 py-2 text-sm font-black text-slate-600" onClick={toggleStatus}>{isProductActive(product) ? "下架" : "上架"}</button> : null}
+              {canDelete ? <button className="rounded-xl bg-rose-500 px-5 py-2 text-sm font-black text-white" onClick={remove}>删除</button> : null}
             </div>
           </div>
 
