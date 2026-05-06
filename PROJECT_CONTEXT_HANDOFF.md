@@ -149,8 +149,20 @@
 32. `/admin/permissions/admin-users`
 33. `/admin/permissions/menus`
 34. `/admin/settings`
+35. `/admin/settings/basic`
+36. `/admin/settings/tip`
+37. `/admin/settings/customer-service`
+38. `/admin/settings/sms`
+39. `/admin/settings/notification`
+40. `/admin/settings/agreement`
+41. `/admin/settings/worker`
+42. `/admin/settings/payment`
+43. `/admin/settings/order`
+44. `/admin/settings/business-target`
+45. `/admin/settings/finance`
+46. `/admin/settings/resources`
 
-注意：设置模块需求中提出的 `/admin/settings/basic`、`/admin/settings/tip`、`/admin/settings/customer-service` 等子路由，在当前扫描中没有发现真实页面，属于待确认/待补齐。
+设置模块本轮已新增或完善 `/admin/settings/basic` 到 `/admin/settings/resources`，`/admin/settings` 会进入基础设置。
 
 ### 5.4 API 占位路由
 
@@ -165,8 +177,13 @@
 7. `/api/customer/recharge`
 8. `/api/customer/tips`
 9. `/api/customer/workers`
+10. `/api/customer-service/enterprise-wechat`
+11. `/api/payment/callback/wechat_pay`
+12. `/api/withdrawals/worker`
 
 `src/app/api/README.md` 说明当前 MVP 仍以浏览器 localStorage mock data 为主，API 结构用于后续接数据库。
+
+企业微信客服、公众号 H5、微信支付、接单员提现、短信、资源上传当前均只预留字段、配置入口或接口结构，不接真实服务。
 
 ## 6. shared store 与 localStorage key
 
@@ -196,6 +213,9 @@
 16. `admin_users`
 17. `admin_menus`
 18. `admin_logs`
+19. `system_settings`
+
+本轮设置模块统一数据源已完成：`system_settings` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`。不要新增独立写入的 `xiaoluoke_system_settings` localStorage key；代码中若保留该名称，只能作为旧数据读取/迁移兼容。
 
 ### 6.2 session / 状态 key
 
@@ -832,13 +852,7 @@
 
 ### 9.10 设置
 
-设置模块需求已明确，但当前代码扫描中仅发现 `/admin/settings`，没有完整设置子路由。
-
-用户要求未来设置必须统一使用：
-
-`xiaoluoke_system_settings`
-
-建议结构：
+设置模块本轮已完成统一数据源和管理端页面整合：
 
 1. `basic`
 2. `tip`
@@ -853,7 +867,28 @@
 11. `finance`
 12. `resources`
 
-该结构在当前 `StoreShape` 中未发现，后续需要先做最小兼容设计，不要和现有 store 冲突。
+当前实现为 `StoreShape.system_settings`，持久化在主 store key `xiaoluoke_customer_mvp_store` 内，不新增独立 `xiaoluoke_system_settings` 写入。
+
+管理端已新增或完善：
+
+1. `/admin/settings/basic`
+2. `/admin/settings/tip`
+3. `/admin/settings/customer-service`
+4. `/admin/settings/sms`
+5. `/admin/settings/notification`
+6. `/admin/settings/agreement`
+7. `/admin/settings/worker`
+8. `/admin/settings/payment`
+9. `/admin/settings/order`
+10. `/admin/settings/business-target`
+11. `/admin/settings/finance`
+12. `/admin/settings/resources`
+
+顾客端已读取：基础设置、客服、用户协议/隐私协议、打赏开关和快捷金额、可用支付方式、下单必看。
+
+接单员端已读取：基础设置、客服、接单员协议、保证金规则、最低保证金、财务提现规则。
+
+企业微信客服、公众号 H5、微信支付、提现、短信、资源上传均只是预留接口和字段，没有接真实服务。
 
 ## 10. 管理端菜单结构要求
 
@@ -927,24 +962,21 @@
 
 ## 12. 当前不确定或需人工确认的内容
 
-1. 设置模块完整子页面没有在当前扫描中发现，可能尚未完成。
-2. `xiaoluoke_system_settings` 未在 `StoreShape` 中发现，设置数据统一化可能未完成。
-3. 独立 `reviews`、`feedback`、`disputes` 数据结构未在 `StoreShape` 中发现，当前可能依赖 orders 兼容字段。
-4. `payment_records` 类型存在，但持久化数组未发现，当前应是 `buildPaymentRecords` 生成视图。
-5. 会员等级管理存在独立 key `xiaoluoke_admin_member_level_settings`，未并入主 store。
-6. 用户后续多次要求的 UI 微调是否全部完成，需要浏览器人工确认。
-7. 用户要求的设置模块“基础/打赏/客服/短信/通知/政策协议/接单员/支付/订单/经营目标/财务/资源管理”可能只做了部分。
-8. 腾讯云部署相关步骤曾讨论过，但当前文档任务不做部署操作。
+1. 独立 `reviews`、`feedback`、`disputes` 数据结构未在 `StoreShape` 中发现，当前可能依赖 orders 兼容字段。
+2. `payment_records` 类型存在，但持久化数组未发现，当前应是 `buildPaymentRecords` 生成视图。
+3. 会员等级管理存在独立 key `xiaoluoke_admin_member_level_settings`，未并入主 store。
+4. 用户后续多次要求的 UI 微调是否全部完成，需要浏览器人工确认。
+5. 设置模块已并入共享 `system_settings`，但企业微信客服、公众号 H5、微信支付、提现、短信、资源上传仍是占位，不是真实服务。
+6. 腾讯云部署相关步骤曾讨论过，但当前文档任务不做部署操作。
 
 ## 13. 下一轮 Codex 优先检查清单
 
 1. 先运行 `npm run build`，确认当前代码可构建。
 2. 先读本文件和 `MODULE_STATUS.md`，不要凭记忆开发。
 3. 每次只选择一个模块继续，优先修不确定和半完成模块。
-4. 若继续设置模块，先确认是否要新增统一 `xiaoluoke_system_settings`，并与现有 store 兼容。
+4. 下一轮建议优先修复：会员等级配置并入 shared store，移除独立 `xiaoluoke_admin_member_level_settings` 数据源。
 5. 若继续反馈/评价/投诉模块，先确认是否新增共享数据结构，避免写散乱假数据。
 6. 若继续权限模块，先检查 `AdminLayout`、`canAccessAdminPath`、按钮权限是否真实生效。
 7. 若继续财务模块，先确认 `wallet_ledger`、`withdraw_requests`、`buildPaymentRecords` 口径一致。
 8. 若继续商品模块，先确认商品上下架、分类上下架、推荐排序是否影响顾客端。
 9. 改完任何模块必须跑 `npm run build`。
-

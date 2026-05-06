@@ -8,11 +8,11 @@
 2. 接单员端 Worker：mock 登录、在线/离线、抢单/接单、订单详情、聊天、完成订单、个人资料、头像/昵称/说明、钱包/提现/保证金相关。
 3. 管理端 Admin Dashboard：电脑后台布局，作为数据中枢，管理统计、用户、商品、订单、接单员、财务、公告、权限、设置、反馈/纠纷。
 
-核心原则：三端必须共用同一套 shared store/localStorage，不允许给顾客端、接单员端、管理端各写一套假数据。主 store key 是 `xiaoluoke_customer_mvp_store`，由 `src/lib/store.ts` 读写，结构在 `src/lib/types.ts` 的 `StoreShape`。当前 store 包含 `users`、`products`、`product_categories`、`workers`、`announcements`、`orders`、`wallet_accounts`、`wallet_ledger`、`recharge_orders`、`recharge_packages`、`withdraw_requests`、`deposit_refunds`、`chat_sessions`、`chat_messages`、`admin_roles`、`admin_users`、`admin_menus`、`admin_logs`。session key 包括顾客、接单员、管理员 session 和公告已读 key。
+核心原则：三端必须共用同一套 shared store/localStorage，不允许给顾客端、接单员端、管理端各写一套假数据。主 store key 是 `xiaoluoke_customer_mvp_store`，由 `src/lib/store.ts` 读写，结构在 `src/lib/types.ts` 的 `StoreShape`。当前 store 包含 `users`、`products`、`product_categories`、`workers`、`announcements`、`orders`、`wallet_accounts`、`wallet_ledger`、`recharge_orders`、`recharge_packages`、`withdraw_requests`、`deposit_refunds`、`chat_sessions`、`chat_messages`、`admin_roles`、`admin_users`、`admin_menus`、`admin_logs`、`system_settings`。session key 包括顾客、接单员、管理员 session 和公告已读 key。
 
 绝对不要做：不接 MongoDB，不接真实微信支付/支付宝支付，不接真实短信，不接真实 COS/OSS 上传，不接真实企业微信 API，不接真实公众号 H5 授权，不接真实接单员小程序提现，不改成微信小程序，不写 `wx.login`。所有“打手”文案必须改成“接单员”。不要恢复“分销、应用、装修、广告投放、裂变、邀请返佣、推广海报”等无关模块。
 
-当前真实路由已经很多，扫描 `src/app/**/page.tsx`。顾客端主要在 `/customer/*`，接单员端在 `/worker/*`，管理端在 `/admin/*`。已存在管理端路由包括 dashboard、order-statistics、users、products、product-categories、orders、orders/create、workers、finance/payments、finance/recharge-packages、finance/tips、finance/ledger、finance/withdrawals、announcements、feedback、disputes、permissions/roles、permissions/admin-users、permissions/menus、settings 等。注意：设置模块用户要求了很多子路由，如 `/admin/settings/basic`、`/admin/settings/tip`、`/admin/settings/customer-service` 等，但当前扫描只确认 `/admin/settings` 存在，继续前必须核对真实代码。
+当前真实路由已经很多，扫描 `src/app/**/page.tsx`。顾客端主要在 `/customer/*`，接单员端在 `/worker/*`，管理端在 `/admin/*`。已存在管理端路由包括 dashboard、order-statistics、users、products、product-categories、orders、orders/create、workers、finance/payments、finance/recharge-packages、finance/tips、finance/ledger、finance/withdrawals、announcements、feedback、disputes、permissions/roles、permissions/admin-users、permissions/menus、settings 等。设置模块本轮已新增或完善 `/admin/settings/basic`、`/admin/settings/tip`、`/admin/settings/customer-service`、`/admin/settings/sms`、`/admin/settings/notification`、`/admin/settings/agreement`、`/admin/settings/worker`、`/admin/settings/payment`、`/admin/settings/order`、`/admin/settings/business-target`、`/admin/settings/finance`、`/admin/settings/resources`。
 
 重要业务规则：
 
@@ -28,7 +28,6 @@
 10. 平台抽成统一字段 `platformCommissionRate`，不再区分手游端/PC端。商品固定收益优先，否则用接单员抽成，否则默认抽成。
 11. 公告统一 `announcements`，按 `visibleTo`、`published`、发布时间和过期时间过滤。顾客端读 all/customer，接单员端读 all/worker，点击 viewCount +1。
 12. 权限是 localStorage MVP。默认 admin/0000，超级管理员不能被删除或禁用。已有 `hasPermission`、`requirePermission`、`canAccessAdminPath` 等，需要核对是否真的控制菜单、页面、按钮和危险操作。
-13. 设置模块用户提出统一 `xiaoluoke_system_settings`，包含 basic、tip、customerService、sms、notification、agreements、worker、payment、order、businessTarget、finance、resources。但当前 `StoreShape` 未发现该结构，继续设置模块前必须先设计兼容方案。
+13. 设置模块统一数据源已完成：`system_settings` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`，包含 basic、tip、customerService、sms、notification、agreements、worker、payment、order、businessTarget、finance、resources。不要新增独立写入的 `xiaoluoke_system_settings` key；若代码中保留该名称，只能作为旧数据读取/迁移兼容。顾客端已读取基础设置、客服、协议、打赏、支付方式、下单必看；接单员端已读取基础设置、客服、接单员协议、保证金规则、最低保证金、财务提现规则。企业微信客服、公众号 H5、微信支付、提现、短信、资源上传都只是预留接口，没有接真实服务。
 
-下一步优先事项：不要一口气做大模块。先跑 `npm run build`。若继续开发，优先选择一个模块，例如“设置模块核对与统一 settings store”或“反馈/评价/投诉结构补齐”，先读相关页面和 store，再最小范围修改。所有修改必须保留顾客端和接单员端现有流程，不新增重复数据源，不写三套假数据，改完必须 `npm run build`。
-
+下一步优先事项：不要一口气做大模块。先跑 `npm run build`。下一轮建议修复模块是“会员等级配置并入 shared store”，把独立 `xiaoluoke_admin_member_level_settings` 迁入主 store。所有修改必须保留顾客端和接单员端现有流程，不新增重复数据源，不写三套假数据，改完必须 `npm run build`。

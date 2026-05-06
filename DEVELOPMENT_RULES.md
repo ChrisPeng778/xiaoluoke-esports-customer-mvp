@@ -87,12 +87,14 @@
 
 ## 7. 设置模块规则
 
-1. 设置模块应统一使用 `xiaoluoke_system_settings` 或兼容主 store 的统一结构。
-2. 不允许顾客端、接单员端、管理端各自维护设置。
-3. 企业微信客服、公众号 H5、微信支付、小程序支付、接单员小程序提现只预留字段，不接真实服务。
-4. 支付配置中密钥、证书、Secret 不能明文展示。
-5. 客服配置不能写死真实手机号、银行卡、身份证等敏感信息。
-6. 保存设置必须写 admin_logs。
+1. 当前设置模块统一使用 `StoreShape.system_settings`，持久化在主 store key `xiaoluoke_customer_mvp_store` 内。
+2. 不允许新增独立写入的 `xiaoluoke_system_settings` localStorage key；若代码中保留该名称，只能作为旧数据读取/迁移兼容。
+3. 不允许顾客端、接单员端、管理端各自维护设置。
+4. 企业微信客服、公众号 H5、微信支付、小程序支付、接单员小程序提现只预留字段，不接真实服务。
+5. 支付配置中密钥、证书、Secret 不能明文展示。
+6. 客服配置不能写死真实手机号、银行卡、身份证等敏感信息。
+7. 保存设置必须写 admin_logs。
+8. 下一轮建议修复模块是会员等级配置并入 shared store，避免继续使用独立 `xiaoluoke_admin_member_level_settings`。
 
 ## 8. 文案与 UI 规则
 
@@ -110,4 +112,3 @@
 2. 不要删除用户已有文件。
 3. 不要使用 destructive git 命令。
 4. 腾讯云/Vercel 部署属于单独任务，不能夹带在功能开发中。
-
