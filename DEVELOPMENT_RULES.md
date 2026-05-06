@@ -87,16 +87,33 @@
 
 ## 7. 设置模块规则
 
-1. 当前设置模块统一使用 `StoreShape.system_settings`，持久化在主 store key `xiaoluoke_customer_mvp_store` 内。
+1. 设置模块统一数据源已完成：当前设置模块统一使用 `StoreShape.system_settings`，持久化在主 store key `xiaoluoke_customer_mvp_store` 内。
 2. 不允许新增独立写入的 `xiaoluoke_system_settings` localStorage key；若代码中保留该名称，只能作为旧数据读取/迁移兼容。
 3. 不允许顾客端、接单员端、管理端各自维护设置。
 4. 企业微信客服、公众号 H5、微信支付、小程序支付、接单员小程序提现只预留字段，不接真实服务。
 5. 支付配置中密钥、证书、Secret 不能明文展示。
 6. 客服配置不能写死真实手机号、银行卡、身份证等敏感信息。
 7. 保存设置必须写 admin_logs。
-8. 下一轮建议修复模块是会员等级配置并入 shared store，避免继续使用独立 `xiaoluoke_admin_member_level_settings`。
+8. 会员等级配置并入 shared store 已完成，不再作为设置模块后续优先项。
 
-## 8. 文案与 UI 规则
+## 8. 会员等级规则
+
+1. 会员等级配置并入 shared store 已完成，统一使用 `StoreShape.member_level_settings`，持久化在主 store key `xiaoluoke_customer_mvp_store` 内。
+2. `member_level_settings` 字段至少包括 `id`、`name`、`minSpend`、`discountRate`、`upgradeReward`、`enabled`、`sort`、`createdAt`、`updatedAt`。
+3. 不允许重新把 `xiaoluoke_admin_member_level_settings` 作为主要数据源；该 key 只能作为旧数据迁移来源。
+4. `readStore()` 初始化时会迁移旧 key 到主 store，并移除旧 key。
+5. `calculateMemberLevel` / `nextLevelGap` 必须读取统一会员等级规则。
+6. 管理端会员等级页面保存后必须影响顾客端等级展示和下单折扣，保存时写入 `admin_logs` 并触发 `xiaoluoke_store_updated`。
+7. 本轮会员等级修改后 `npm run build` 已通过。
+
+## 9. 下一轮优先项
+
+1. 投诉 / 反馈 / 售后 / 评价闭环尚未修复。
+2. 下一轮建议优先修复投诉 / 反馈 / 售后 / 评价闭环。
+3. 修复前先确认是否需要新增共享数据结构，避免写散乱假数据。
+4. 不要顺手修完整财务提现闭环，不要接真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+
+## 10. 文案与 UI 规则
 
 1. 后台可以参考第三方截图的信息架构和布局，但不能复制品牌、Logo、文案和独特视觉。
 2. 所有“打手”必须改成“接单员”。
@@ -106,7 +123,7 @@
 6. 管理端保持桌面后台风格。
 7. 不要为了 UI 改动破坏业务流程。
 
-## 9. Git 与部署规则
+## 11. Git 与部署规则
 
 1. 没有用户明确要求，不要自动提交、推送或部署。
 2. 不要删除用户已有文件。

@@ -214,8 +214,11 @@
 17. `admin_menus`
 18. `admin_logs`
 19. `system_settings`
+20. `member_level_settings`
 
 本轮设置模块统一数据源已完成：`system_settings` 已并入 `xiaoluoke_customer_mvp_store` 的 `StoreShape`。不要新增独立写入的 `xiaoluoke_system_settings` localStorage key；代码中若保留该名称，只能作为旧数据读取/迁移兼容。
+
+本轮会员等级配置并入 shared store 已完成：新增 `member_level_settings`，统一持久化在主 store key `xiaoluoke_customer_mvp_store` 内。`xiaoluoke_admin_member_level_settings` 不再作为主要数据源，只作为旧数据迁移来源；`readStore()` 初始化时会迁移旧 key 到主 store，并移除旧 key。`npm run build` 已通过。
 
 ### 6.2 session / 状态 key
 
@@ -261,12 +264,13 @@
 16. `status?`
 17. `remark?`
 
-会员等级规则：
+会员等级规则已从硬编码改为读取 `StoreShape.member_level_settings`：
 
-1. 普通会员：0-199.99 洛克贝
-2. 中级会员：200-499.99 洛克贝
-3. 高级会员：500-999.99 洛克贝
-4. 顶级会员：1000 洛克贝以上
+1. 默认白金会员：消费门槛 100，折扣 1.00
+2. 默认钻石会员：消费门槛 520，折扣 1.00
+3. 默认至尊会员：消费门槛 1000，折扣 0.93
+4. 默认超级黑卡会员：消费门槛 3000，折扣 0.90
+5. `calculateMemberLevel`、`nextLevelGap` 和下单折扣读取同一套会员等级规则。
 
 ### 7.2 Worker
 
@@ -890,6 +894,18 @@
 
 企业微信客服、公众号 H5、微信支付、提现、短信、资源上传均只是预留接口和字段，没有接真实服务。
 
+### 9.11 会员等级
+
+会员等级配置并入 shared store 已完成：
+
+1. `StoreShape.member_level_settings` 保存统一会员等级配置。
+2. 字段包括 `id`、`name`、`minSpend`、`discountRate`、`upgradeReward`、`enabled`、`sort`、`createdAt`、`updatedAt`。
+3. `xiaoluoke_admin_member_level_settings` 不再作为主要数据源，只作为旧数据迁移来源。
+4. `readStore()` 初始化时会迁移旧 key 到主 store，并移除旧 key。
+5. `calculateMemberLevel` / `nextLevelGap` 已读取统一会员等级规则。
+6. 管理端 `/admin/users/member-levels` 保存后会写入 `admin_logs`、触发 `xiaoluoke_store_updated`，并影响顾客端等级展示和下单折扣。
+7. 本轮修改后 `npm run build` 已通过。
+
 ## 10. 管理端菜单结构要求
 
 默认一级菜单应为：
@@ -964,9 +980,9 @@
 
 1. 独立 `reviews`、`feedback`、`disputes` 数据结构未在 `StoreShape` 中发现，当前可能依赖 orders 兼容字段。
 2. `payment_records` 类型存在，但持久化数组未发现，当前应是 `buildPaymentRecords` 生成视图。
-3. 会员等级管理存在独立 key `xiaoluoke_admin_member_level_settings`，未并入主 store。
+3. 投诉 / 反馈 / 售后 / 评价闭环尚未修复，下一轮建议优先处理。
 4. 用户后续多次要求的 UI 微调是否全部完成，需要浏览器人工确认。
-5. 设置模块已并入共享 `system_settings`，但企业微信客服、公众号 H5、微信支付、提现、短信、资源上传仍是占位，不是真实服务。
+5. 设置模块已并入共享 `system_settings`，会员等级配置已并入共享 `member_level_settings`，但企业微信客服、公众号 H5、微信支付、提现、短信、资源上传仍是占位，不是真实服务。
 6. 腾讯云部署相关步骤曾讨论过，但当前文档任务不做部署操作。
 
 ## 13. 下一轮 Codex 优先检查清单
@@ -974,8 +990,8 @@
 1. 先运行 `npm run build`，确认当前代码可构建。
 2. 先读本文件和 `MODULE_STATUS.md`，不要凭记忆开发。
 3. 每次只选择一个模块继续，优先修不确定和半完成模块。
-4. 下一轮建议优先修复：会员等级配置并入 shared store，移除独立 `xiaoluoke_admin_member_level_settings` 数据源。
-5. 若继续反馈/评价/投诉模块，先确认是否新增共享数据结构，避免写散乱假数据。
+4. 设置模块统一数据源已完成；会员等级配置并入 shared store 已完成。
+5. 下一轮建议优先修复：投诉 / 反馈 / 售后 / 评价闭环。先确认是否新增共享数据结构，避免写散乱假数据。
 6. 若继续权限模块，先检查 `AdminLayout`、`canAccessAdminPath`、按钮权限是否真实生效。
 7. 若继续财务模块，先确认 `wallet_ledger`、`withdraw_requests`、`buildPaymentRecords` 口径一致。
 8. 若继续商品模块，先确认商品上下架、分类上下架、推荐排序是否影响顾客端。
