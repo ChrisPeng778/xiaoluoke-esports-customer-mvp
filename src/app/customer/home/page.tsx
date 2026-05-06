@@ -2,16 +2,15 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { ProductCard } from "@/components/ProductCard";
 import { SafeImage } from "@/components/SafeImage";
 import { useCustomerSession } from "@/lib/hooks";
-import { getAnnouncements, getProducts } from "@/lib/store";
-import type { ProductCategory } from "@/lib/types";
+import { formatTime, getAnnouncements, getProducts, getUnreadPinnedAnnouncement, getVisibleProductCategories, incrementAnnouncementView, markAnnouncementRead } from "@/lib/store";
+import type { Announcement, ProductCategory } from "@/lib/types";
 
-const categories: Array<ProductCategory | "全部分类"> = ["全部分类", "异色专区", "PVP专区", "陪玩专区", "资源专区"];
 const homeBannerImage = "/images/banners/home-main.jpg";
 
 export default function CustomerHomePage() {
@@ -26,9 +25,29 @@ function CustomerHomeContent() {
   const searchParams = useSearchParams();
   const { session, ready } = useCustomerSession();
   const [activeCategory, setActiveCategory] = useState<ProductCategory | "全部分类">("全部分类");
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
+  const [autoAnnouncement, setAutoAnnouncement] = useState<Announcement | null>(null);
+  const categories = ["全部分类", ...getVisibleProductCategories().map((item) => item.name)] as Array<ProductCategory | "全部分类">;
   const products = getProducts(activeCategory);
-  const announcement = getAnnouncements()[0];
+  const announcement = getAnnouncements("customer")[0];
   const workerId = searchParams.get("workerId");
+  const announcementUserId = session?.user.id ?? "guest_customer";
+
+  useEffect(() => {
+    if (!ready) return;
+    const unread = getUnreadPinnedAnnouncement("customer", announcementUserId);
+    if (unread) setAutoAnnouncement(unread);
+  }, [announcementUserId, ready]);
+
+  const openAnnouncement = (item: Announcement) => {
+    incrementAnnouncementView(item.id);
+    setSelectedAnnouncement(item);
+  };
+
+  const closeAutoAnnouncement = () => {
+    if (autoAnnouncement) markAnnouncementRead("customer", announcementUserId, autoAnnouncement.id);
+    setAutoAnnouncement(null);
+  };
 
   if (!ready) return null;
 
@@ -45,12 +64,12 @@ function CustomerHomeContent() {
           fallbackText="首页 Banner 图待放入"
         />
 
-        <Link href="/customer/notice" className="panel flex items-center gap-2 px-4 py-3">
-          <span className="rounded-full bg-rock-gold px-2 py-1 text-xs font-black text-slate-900">公告</span>
-          <p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-600">
-            {announcement?.content ?? "欢迎来到小洛克电竞，当前为测试版本，部分功能与内容正在逐步完善中。"}
-          </p>
-        </Link>
+        {announcement ? (
+          <button className="panel flex w-full items-center gap-2 px-4 py-3 text-left" onClick={() => openAnnouncement(announcement)}>
+            <span className="rounded-full bg-rock-gold px-2 py-1 text-xs font-black text-slate-900">公告</span>
+            <p className="min-w-0 flex-1 truncate text-sm font-bold text-slate-600">{announcement.title}：{announcement.content}</p>
+          </button>
+        ) : null}
 
         <div className="grid grid-cols-3 gap-3">
           <Link href="/customer/worker-apply" className="panel px-3 py-4 text-center text-sm font-black text-slate-800">
@@ -86,6 +105,31 @@ function CustomerHomeContent() {
       </section>
 
       <BottomNav />
+      {selectedAnnouncement ? (
+        <AnnouncementModal announcement={selectedAnnouncement} onClose={() => setSelectedAnnouncement(null)} />
+      ) : null}
+      {autoAnnouncement ? (
+        <AnnouncementModal announcement={autoAnnouncement} onClose={closeAutoAnnouncement} />
+      ) : null}
     </main>
+  );
+}
+
+function AnnouncementModal({ announcement, onClose }: { announcement: Announcement; onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/45 px-5">
+      <section className="max-h-[78vh] w-full max-w-[390px] overflow-y-auto rounded-[24px] bg-white p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black text-amber-600">公告</p>
+            <h2 className="mt-1 text-xl font-black text-slate-900">{announcement.title}</h2>
+            <p className="mt-1 text-xs font-bold text-slate-400">{formatTime(announcement.publishAt || announcement.createdAt)}</p>
+          </div>
+          <button className="rounded-full bg-slate-100 px-3 py-1 text-lg font-black text-slate-500" onClick={onClose}>×</button>
+        </div>
+        {announcement.coverImage ? <SafeImage src={announcement.coverImage} alt={announcement.title} className="mt-4 aspect-[16/9] w-full rounded-2xl" imgClassName="object-cover" /> : null}
+        <p className="mt-4 whitespace-pre-wrap text-sm font-bold leading-7 text-slate-600">{announcement.content}</p>
+      </section>
+    </div>
   );
 }

@@ -1,8 +1,8 @@
-# 小洛克电竞 Customer MVP
+# 小洛克电竞 Web App MVP
 
-这是“小洛克电竞”网页版顾客端 MVP，使用 Next.js + React + Tailwind CSS。
+这是“小洛克电竞”网页版 H5 / Web App MVP，使用 Next.js + React + Tailwind CSS。
 
-当前阶段只实现顾客端：
+当前阶段以顾客端为主，并新增本地 mock 接单员端 MVP：
 
 - `/login`
 - `/customer/home`
@@ -17,6 +17,16 @@
 - `/customer/chat/[orderId]`
 - `/customer/profile`
 - `/customer/ranking`
+
+接单员端测试入口：
+
+- `/worker/login`
+- `/worker/home`
+- `/worker/orders`
+- `/worker/order/[id]`
+- `/worker/chat/[orderId]`
+- `/worker/wallet`
+- `/worker/profile`
 
 本地开发阶段使用 `localStorage` 模拟数据，已预留 API 目录和 MongoDB 集合边界。
 
@@ -49,6 +59,10 @@ http://localhost:3000/login
 ## 订单聊天 Mock 说明
 
 当前聊天为本地 mock 聊天：`chat_sessions` 和 `chat_messages` 会写入浏览器 `localStorage`，图片消息使用 FileReader 转成 base64 临时保存。真实版本需要把聊天数据存入 MongoDB，图片上传到腾讯云 COS，实时消息改用 WebSocket / Socket.IO 或其他实时服务。顾客端和后续接单员端应共用同一套聊天 session，管理员端处理纠纷时可查看该订单聊天记录。
+
+## 接单员端 Mock 说明
+
+当前接单员端复用同一份 `orders`、`workers`、`wallet_accounts`、`wallet_ledger`、`chat_sessions` 和 `chat_messages` 数据。接单员可以 mock 登录、查看可接订单、接单、提交完成、查看订单沟通、发送文字/图片消息，并查看洛克贝钱包与收益流水。当前不包含真实接单员注册、提现审批、管理员派单、真实数据库或实时通信。
 
 ## 部署
 

@@ -124,8 +124,8 @@ function OrderConfirmContent() {
 
         <div className="panel space-y-3 p-4">
           <h2 className="text-lg font-black text-slate-900">下单信息</h2>
-          <input className="field" placeholder="游戏昵称" value={gameNickname} onChange={(e) => setGameNickname(e.target.value)} />
-          <input className="field" placeholder="ID 编号" value={gameId} onChange={(e) => setGameId(e.target.value)} />
+          {product.requireGameNickname !== false ? <input className="field" placeholder="游戏昵称" value={gameNickname} onChange={(e) => setGameNickname(e.target.value)} /> : null}
+          {product.requireGameId !== false ? <input className="field" placeholder="ID 编号" value={gameId} onChange={(e) => setGameId(e.target.value)} /> : null}
           <input
             className="field"
             inputMode="numeric"
@@ -133,12 +133,21 @@ function OrderConfirmContent() {
             value={quantityText}
             onChange={(e) => setQuantityText(e.target.value.replace(/[^\d]/g, "") || "1")}
           />
-          <textarea
-            className="min-h-24 w-full rounded-[12px] border border-slate-200 px-3 py-3 text-sm outline-none focus:border-rock-gold focus:ring-4 focus:ring-rock-gold/20"
-            placeholder="下单备注"
-            value={remark}
-            onChange={(e) => setRemark(e.target.value)}
-          />
+          {product.requireRemark ? (
+            <textarea
+              className="min-h-24 w-full rounded-[12px] border border-slate-200 px-3 py-3 text-sm outline-none focus:border-rock-gold focus:ring-4 focus:ring-rock-gold/20"
+              placeholder="下单备注"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+            />
+          ) : (
+            <textarea
+              className="min-h-20 w-full rounded-[12px] border border-slate-200 px-3 py-3 text-sm outline-none focus:border-rock-gold focus:ring-4 focus:ring-rock-gold/20"
+              placeholder="下单备注（选填）"
+              value={remark}
+              onChange={(e) => setRemark(e.target.value)}
+            />
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <button
@@ -148,7 +157,7 @@ function OrderConfirmContent() {
             >
               随机安排
             </button>
-            <Link href={`/customer/select-worker?productId=${product.id}`} className={`grid h-11 place-items-center rounded-full text-sm font-black ${assignmentType === "specified" ? "bg-rock-gold" : "bg-slate-100 text-slate-500"}`}>
+            <Link href={product.allowAssignedWorker === false ? "#" : `/customer/select-worker?productId=${product.id}`} onClick={(event) => { if (product.allowAssignedWorker === false) { event.preventDefault(); setMessage("该商品暂不支持指定接单员"); } }} className={`grid h-11 place-items-center rounded-full text-sm font-black ${assignmentType === "specified" ? "bg-rock-gold" : "bg-slate-100 text-slate-500"}`}>
               指定接单员
             </Link>
           </div>

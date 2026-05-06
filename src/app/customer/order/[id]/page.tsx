@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useCustomerSession } from "@/lib/hooks";
+import { useCustomerSession, useStoreSync } from "@/lib/hooks";
 import {
   disputeOrder,
   formatCurrency,
@@ -30,16 +30,15 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null);
   const [message, setMessage] = useState("");
   const [unreadCount, setUnreadCount] = useState(0);
+  const [customerRating, setCustomerRating] = useState(5);
 
-  const loadOrder = () => {
+  const loadOrder = useCallback(() => {
     if (!params.id) return;
     setOrder(getCurrentCustomerOrder(params.id));
     setUnreadCount(getOrderChat(params.id).unreadCount);
-  };
+  }, [params.id]);
 
-  useEffect(() => {
-    if (ready) loadOrder();
-  }, [ready, params.id, session?.user.id]);
+  useStoreSync(loadOrder, ready && Boolean(session), 1500);
 
   if (!ready) return null;
 
@@ -141,7 +140,12 @@ export default function OrderDetailPage() {
 
         {order.orderType === "service" && order.status === "worker_completed" ? (
           <div className="grid gap-3">
-            <button className="primary-button w-full" onClick={() => runAction(() => settleOrder(order.id), "已确认结单，会员等级已自动更新")}>
+            <div className="panel p-4">
+              <h2 className="text-lg font-black text-slate-900">给接单员评价</h2>
+              <p className="mt-2 text-sm font-bold text-slate-500">请选择本次服务星级，确认结单后会记录到订单中。</p>
+              <StarRating value={customerRating} onChange={setCustomerRating} />
+            </div>
+            <button className="primary-button w-full" onClick={() => runAction(() => settleOrder(order.id, customerRating), "已确认结单，评价已提交，会员等级已自动更新")}>
               确认结单
             </button>
             <button className="secondary-button w-full" onClick={() => runAction(() => disputeOrder(order.id), "订单已提交疑问，等待管理员处理")}>
@@ -155,6 +159,17 @@ export default function OrderDetailPage() {
         ) : null}
 
         {message ? <div className="rounded-[14px] bg-emerald-50 px-3 py-3 text-sm font-bold text-emerald-700">{message}</div> : null}
+
+        {order.orderType === "service" && order.status === "settled" && order.customerRating ? (
+          <div className="panel p-4">
+            <h2 className="text-lg font-black text-slate-900">我的评价</h2>
+            <div className="mt-3 flex items-center gap-1 text-3xl text-rock-gold" aria-label={`已评价 ${order.customerRating} 星`}>
+              {Array.from({ length: 5 }, (_, index) => (
+                <span key={index}>{index < order.customerRating! ? "★" : "☆"}</span>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {process.env.NODE_ENV === "development" && order.orderType === "service" ? (
           <div className="panel border-dashed border-rock-gold/70 p-4">
@@ -205,5 +220,31 @@ function canOpenChat(order: Order) {
     order.orderType === "service" &&
     ["accepted", "worker_completed", "disputed", "settled"].includes(order.status) &&
     Boolean(order.workerId && order.workerName)
+  );
+}
+
+function StarRating({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div className="mt-4 flex items-center justify-center gap-2" role="radiogroup" aria-label="服务评分">
+      {Array.from({ length: 5 }, (_, index) => {
+        const star = index + 1;
+        const selected = star <= value;
+        return (
+          <button
+            key={star}
+            type="button"
+            className={`h-12 w-12 rounded-full text-3xl leading-none transition active:scale-95 ${
+              selected ? "bg-amber-100 text-rock-gold" : "bg-slate-100 text-slate-300"
+            }`}
+            aria-label={`${star} 星`}
+            aria-checked={value === star}
+            role="radio"
+            onClick={() => onChange(star)}
+          >
+            ★
+          </button>
+        );
+      })}
+    </div>
   );
 }

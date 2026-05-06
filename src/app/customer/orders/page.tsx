@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppHeader } from "@/components/AppHeader";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { BottomNav } from "@/components/BottomNav";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
-import { useCustomerSession } from "@/lib/hooks";
+import { useCustomerSession, useStoreSync } from "@/lib/hooks";
 import { formatCurrency, formatRock, formatTime, getCurrentCustomerOrders } from "@/lib/store";
 import type { Order, OrderStatus } from "@/lib/types";
 
@@ -39,7 +39,9 @@ function OrdersContent() {
   const initialTab = (searchParams.get("tab") as TabKey) || "all";
   const [activeTab, setActiveTab] = useState<TabKey>(tabs.some((tab) => tab.key === initialTab) ? initialTab : "all");
   const [loginOpen, setLoginOpen] = useState(false);
-  const orders = getCurrentCustomerOrders();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const loadOrders = useCallback(() => setOrders(getCurrentCustomerOrders()), []);
+  useStoreSync(loadOrders, ready && Boolean(session), 1500);
 
   const visibleOrders = useMemo(() => {
     const tab = tabs.find((item) => item.key === activeTab) ?? tabs[0];

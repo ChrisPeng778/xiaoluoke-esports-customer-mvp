@@ -1,22 +1,41 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import type { CustomerSession } from "@/lib/types";
 import { formatRock } from "@/lib/store";
 
+const rootPaths = new Set(["/customer", "/customer/home", "/customer/categories", "/customer/workers", "/customer/profile", "/login"]);
+
 export function AppHeader({ session }: { session?: CustomerSession | null }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const showBack = !rootPaths.has(pathname);
+
   return (
     <header className="sticky top-0 z-20 -mx-4 mb-4 border-b border-white/55 bg-[#f5efe4]/90 px-4 py-3 backdrop-blur">
       <div className="mx-auto flex max-w-[430px] items-center justify-between gap-3">
-        <Link href="/customer/home" className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-[12px] bg-rock-gold text-lg font-black text-slate-900">
-            洛
-          </span>
-          <div>
-            <p className="text-base font-black leading-tight text-rock-ink">小洛克电竞</p>
-            <p className="text-xs font-medium text-stone-500">H5 Customer</p>
-          </div>
-        </Link>
+        <div className="flex min-w-0 items-center gap-2">
+          {showBack ? (
+            <button
+              type="button"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-xl font-black text-slate-700 shadow-sm"
+              onClick={() => router.back()}
+              aria-label="返回上一级"
+            >
+              ‹
+            </button>
+          ) : null}
+          <Link href="/customer/home" className="flex min-w-0 items-center gap-2">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] bg-rock-gold text-lg font-black text-slate-900">
+              洛
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-base font-black leading-tight text-rock-ink">小洛克电竞</p>
+              <p className="text-xs font-medium text-stone-500">H5 Customer</p>
+            </div>
+          </Link>
+        </div>
 
         {session ? (
           <Link

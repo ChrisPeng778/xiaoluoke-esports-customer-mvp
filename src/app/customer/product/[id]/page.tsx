@@ -26,6 +26,7 @@ function ProductDetailContent() {
   const [loginOpen, setLoginOpen] = useState(false);
   const product = getProduct(params.id);
   const workerId = searchParams.get("workerId");
+  const sales = (product?.realSales ?? product?.sales ?? 0) + (product?.virtualSales ?? 0);
 
   if (!ready) return null;
 
@@ -53,7 +54,7 @@ function ProductDetailContent() {
 
       <section className="space-y-4 pb-20">
         <SafeImage
-          src={product.imageUrl}
+          src={product.homeImageUrl || product.imageUrl}
           alt={product.name}
           className="aspect-square w-full rounded-[24px] text-base shadow-soft"
           imgClassName="object-contain scale-[0.94]"
@@ -63,7 +64,7 @@ function ProductDetailContent() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <h1 className="text-2xl font-black text-slate-900">{product.name}</h1>
-              <p className="mt-2 text-sm font-bold text-slate-500">销量 {product.sales}</p>
+              <p className="mt-2 text-sm font-bold text-slate-500">销量 {sales}</p>
             </div>
             <p className="shrink-0 text-2xl font-black text-orange-500">{formatCurrency(product.priceRmb)}</p>
           </div>
@@ -82,8 +83,13 @@ function ProductDetailContent() {
         <div className="panel p-4">
           <h2 className="text-lg font-black text-slate-900">商品详情</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            {product.description} 当前页面为测试版商品框架，后续会补充更完整的服务范围、交付标准和注意事项。
+            {product.description}
           </p>
+          {product.detailImages?.length ? (
+            <div className="mt-3 space-y-3">
+              {product.detailImages.map((image) => <SafeImage key={image} src={image} alt={`${product.name}详情图`} className="aspect-[4/3] w-full rounded-[16px]" imgClassName="object-cover" fallbackText="详情图" />)}
+            </div>
+          ) : null}
         </div>
 
         <div className="panel p-4">

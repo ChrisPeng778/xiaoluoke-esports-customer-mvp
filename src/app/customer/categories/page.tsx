@@ -6,10 +6,9 @@ import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { ProductCard } from "@/components/ProductCard";
 import { useCustomerSession } from "@/lib/hooks";
-import { getProducts } from "@/lib/store";
+import { getProducts, getVisibleProductCategories } from "@/lib/store";
 import type { ProductCategory } from "@/lib/types";
 
-const categories: Array<ProductCategory | "全部"> = ["全部", "异色专区", "PVP专区", "陪玩专区", "资源专区"];
 const sorts = ["综合", "销量", "价格", "上新"] as const;
 
 export default function CategoriesPage() {
@@ -26,10 +25,11 @@ function CategoriesContent() {
   const [category, setCategory] = useState<ProductCategory | "全部">("全部");
   const [sort, setSort] = useState<(typeof sorts)[number]>("综合");
   const workerId = searchParams.get("workerId");
+  const categories = ["全部", ...getVisibleProductCategories().map((item) => item.name)] as Array<ProductCategory | "全部">;
 
   const products = useMemo(() => {
     const list = [...getProducts(category)];
-    if (sort === "销量") list.sort((a, b) => b.sales - a.sales);
+    if (sort === "销量") list.sort((a, b) => ((b.realSales ?? b.sales) + (b.virtualSales ?? 0)) - ((a.realSales ?? a.sales) + (a.virtualSales ?? 0)));
     if (sort === "价格") list.sort((a, b) => a.priceRmb - b.priceRmb);
     if (sort === "上新") list.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return list;

@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { BottomNav } from "@/components/BottomNav";
 import { useCustomerSession } from "@/lib/hooks";
-import { formatRock, logout, nextLevelGap, updateCurrentNickname } from "@/lib/store";
+import { formatRock, logout, nextLevelGap, updateCurrentNickname, updateCurrentUserAvatar } from "@/lib/store";
+import type { ChangeEvent } from "react";
 
 const orderEntries = [
   ["待付款", "/customer/orders?tab=unpaid"],
@@ -23,9 +24,7 @@ const featureEntries = [
   ["退款/售后", "/customer/after-sale"],
   ["接单员申请", "/customer/worker-apply"],
   ["在线客服", "/customer/service"],
-  ["我的分销", "/customer/referral"],
   ["举报投诉", "/customer/report"],
-  ["商务合作", "/customer/business"],
   ["公告通知", "/customer/notice"],
   ["用户协议", "/customer/agreement"],
   ["隐私协议", "/customer/privacy"],
@@ -37,6 +36,8 @@ export default function ProfilePage() {
   const [loginOpen, setLoginOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [nickname, setNickname] = useState("");
+  const [avatarMessage, setAvatarMessage] = useState("");
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   if (!ready) return null;
 
@@ -75,6 +76,34 @@ export default function ProfilePage() {
     }
   };
 
+  const changeAvatar = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const allowed = ["image/jpeg", "image/png", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      setAvatarMessage("仅支持 jpg、png、webp 图片。");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setAvatarMessage("头像不能超过 2MB。");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        updateCurrentUserAvatar(String(reader.result));
+        refresh();
+        setAvatarMessage("头像已更新");
+      } catch (error) {
+        setAvatarMessage(error instanceof Error ? error.message : "头像保存失败");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <main className="page-shell">
       <AppHeader session={session} />
@@ -82,9 +111,19 @@ export default function ProfilePage() {
       <section className="space-y-4">
         <div className="rounded-[26px] bg-gradient-to-br from-amber-300 via-yellow-100 to-white p-5 shadow-[0_18px_45px_rgba(245,158,11,0.18)]">
           <div className="flex items-center gap-3">
-            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-white/80 text-xs font-black text-amber-700 shadow-sm">
-              头像
-            </div>
+            <button
+              type="button"
+              className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-white/80 text-xs font-black text-amber-700 shadow-sm ring-2 ring-white/70"
+              onClick={() => avatarInputRef.current?.click()}
+              aria-label="更换头像"
+            >
+              {session.user.avatarUrl ? (
+                <img src={session.user.avatarUrl} alt="用户头像" className="h-full w-full object-cover" />
+              ) : (
+                <span>头像</span>
+              )}
+            </button>
+            <input ref={avatarInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={changeAvatar} />
             <div className="min-w-0 flex-1">
               {editing ? (
                 <div className="flex gap-2">
@@ -101,6 +140,7 @@ export default function ProfilePage() {
                 >
                   <h1 className="truncate text-2xl font-black text-slate-900">{session.user.nickname}</h1>
                   <p className="mt-1 text-sm font-bold text-slate-600">ID：{session.user.displayId}</p>
+                  {avatarMessage ? <p className="mt-1 text-xs font-black text-amber-700">{avatarMessage}</p> : null}
                 </button>
               )}
             </div>
@@ -151,11 +191,6 @@ export default function ProfilePage() {
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="panel p-4">
-          <h2 className="text-lg font-black text-slate-900">分销佣金</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-500">分销功能正在完善中，后续将支持邀请好友、查看佣金和奖励记录。</p>
         </div>
 
         <div className="panel p-4">

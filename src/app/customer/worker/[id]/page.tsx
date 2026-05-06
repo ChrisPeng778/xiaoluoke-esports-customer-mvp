@@ -60,8 +60,6 @@ export default function WorkerDetailPage() {
         </div>
 
         <Info title="Ta 的介绍" text={worker.intro} />
-        <Info title="Ta 的评价" text="测试版先展示接单员资料，正式评价会在订单评价能力上线后同步展示。" />
-        <Info title="Ta 的动态" text={worker.dynamicText} />
 
         <div className="grid grid-cols-3 gap-3">
           <button className="secondary-button" onClick={() => alert("举报功能正在完善中。")}>

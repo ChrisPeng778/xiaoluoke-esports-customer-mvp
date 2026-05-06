@@ -4,13 +4,21 @@ export type MemberLevel = "普通会员" | "中级会员" | "高级会员" | "�
 
 export type ProductCategory = "PVP专区" | "陪玩专区" | "资源专区" | "异色专区";
 
-export type ProductStatus = "on" | "off";
+export type ProductStatus = "on" | "off" | "active" | "inactive";
+
+export type ProductWorkerIncomeType = "fixed" | "percent";
 
 export type WorkerLevel = "明星" | "金牌" | "银牌" | "铜牌" | "见习";
 
 export type WorkerStatus = "online" | "offline";
 
-export type PaymentMethod = "wechat" | "alipay" | "locke_coin";
+export type WorkerAccountStatus = "normal" | "frozen";
+
+export type WorkerDepositStatus = "unpaid" | "paid" | "refund_pending" | "refunded";
+
+export type ServicePort = "mobile" | "pc" | "both";
+
+export type PaymentMethod = "wechat" | "alipay" | "locke_coin" | "admin_created";
 
 export type AssignmentType = "random" | "specified";
 
@@ -23,27 +31,59 @@ export type OrderStatus =
   | "worker_completed"
   | "settled"
   | "disputed"
+  | "cancelled"
   | "refunded"
   | "after_sale"
+  | "after_sale_refunded"
   | "paid"
   | "failed";
 
 export type LedgerType =
+  | "recharge_in"
   | "wechat_recharge"
   | "alipay_recharge"
   | "mock_recharge"
+  | "order_pay"
   | "order_freeze"
   | "order_settle"
+  | "order_refund"
+  | "ranking_reward"
   | "refund"
   | "tip_in"
   | "tip_out"
   | "withdraw_request"
+  | "withdraw_freeze"
   | "withdraw_done"
-  | "admin_adjust";
+  | "withdraw_rejected"
+  | "admin_adjust"
+  | "order_income"
+  | "tip_income"
+  | "deposit_paid"
+  | "deposit_deduct"
+  | "deposit_refund"
+  | "deposit_admin_add"
+  | "deposit_admin_deduct"
+  | "platform_commission";
 
 export type LedgerDirection = "in" | "out" | "freeze" | "settle";
 
 export type RechargeStatus = "unpaid" | "paid" | "failed" | "cancelled";
+
+export type WithdrawStatus = "pending" | "approved" | "rejected" | "paid" | "completed";
+
+export type RechargePackageStatus = "active" | "inactive";
+
+export type PaymentRecordStatus = "pending" | "success" | "failed" | "closed" | "refunded" | "partial_refunded";
+
+export type PaymentRecordType = "order_payment" | "recharge" | "tip_payment" | "deposit" | "admin_adjust" | "refund";
+
+export type PaymentRecordChannel = "locke_coin" | "wechat" | "alipay" | "wechat_miniapp" | "admin_created" | "mock";
+
+export type AnnouncementType = "notice" | "system" | "activity" | "maintenance" | "order";
+
+export type AnnouncementVisibleTo = "all" | "customer" | "worker" | "admin";
+
+export type AnnouncementStatus = "draft" | "published" | "archived";
 
 export type ChatSessionStatus = "waiting_worker" | "active" | "closed";
 
@@ -61,6 +101,9 @@ export interface User {
   nicknameEditable: boolean;
   avatarUrl: string;
   role: UserRole;
+  status?: "active" | "frozen";
+  adminRemark?: string;
+  updatedAt?: string;
   memberLevel: MemberLevel;
   totalSpent: number;
   availableBalance: number;
@@ -71,25 +114,67 @@ export interface User {
 export interface Product {
   id: string;
   name: string;
+  shortDescription?: string;
   category: ProductCategory;
+  categoryId?: string;
   priceRmb: number;
   priceLockeCoin: number;
+  costPrice?: number;
   sales: number;
+  virtualSales?: number;
+  realSales?: number;
   imageUrl: string;
+  homeImageUrl?: string;
+  detailImages?: string[];
   tags: string[];
   description: string;
   serviceDescription: string;
+  servicePort?: ServicePort;
+  sortOrder?: number;
+  isRecommended?: boolean;
+  purchaseLimitEnabled?: boolean;
+  purchaseLimitPerUser?: number;
+  deleted?: boolean;
+  workerIncomeType?: ProductWorkerIncomeType;
+  workerIncomeAmount?: number;
+  estimatedDuration?: string;
+  requireGameId?: boolean;
+  requireGameNickname?: boolean;
+  requireRemark?: boolean;
+  allowAssignedWorker?: boolean;
   status: ProductStatus;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ProductCategoryRecord {
+  id: string;
+  parentId: string | null;
+  name: string;
+  iconUrl?: string;
+  sortOrder: number;
+  status: ProductStatus;
+  createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Worker {
   id: string;
+  userName?: string;
   name: string;
   avatarUrl: string;
   gender?: "male" | "female" | "unknown";
+  gameId?: string;
+  gameNickname?: string;
   level: WorkerLevel;
   onlineStatus: WorkerStatus;
+  status: WorkerAccountStatus;
+  depositStatus: WorkerDepositStatus;
+  servicePort?: ServicePort;
+  depositAmount?: number;
+  platformCommissionRate?: number;
+  createdAt?: string;
+  updatedAt?: string;
   intro: string;
   completedOrderCount: number;
   rating: number;
@@ -103,9 +188,19 @@ export interface Worker {
 export interface Announcement {
   id: string;
   title: string;
+  type: AnnouncementType;
+  visibleTo: AnnouncementVisibleTo;
+  coverImage?: string;
   content: string;
-  status: "published" | "draft";
+  isPinned: boolean;
+  sortOrder: number;
+  status: AnnouncementStatus;
+  viewCount: number;
+  publishAt?: string;
+  expireAt?: string;
+  deleted?: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface Order {
@@ -118,6 +213,23 @@ export interface Order {
   productId?: string;
   productName?: string;
   productDescription?: string;
+  productImageUrl?: string;
+  productCategory?: ProductCategory;
+  productSnapshot?: {
+    name: string;
+    priceRmb: number;
+    priceLockeCoin: number;
+    category: ProductCategory;
+    servicePort?: ServicePort;
+    workerIncomeType?: ProductWorkerIncomeType;
+    workerIncomeAmount?: number;
+  };
+  servicePort?: ServicePort;
+  customProductInfo?: {
+    name: string;
+    category: ProductCategory;
+    description?: string;
+  };
   workerId?: string | null;
   workerName?: string | null;
   gameNickname?: string;
@@ -128,6 +240,8 @@ export interface Order {
   specifiedWorkerId?: string | null;
   specifiedWorkerName?: string | null;
   paymentMethod: PaymentMethod;
+  paymentStatus?: "unpaid" | "paid" | "refunded";
+  assignedByAdmin?: boolean;
   amountRmb: number;
   amountLockeCoin: number;
   amount?: number;
@@ -135,7 +249,22 @@ export interface Order {
   createdAt: string;
   updatedAt: string;
   paidAt?: string;
+  assignedAt?: string;
+  startedAt?: string;
+  submittedAt?: string;
   settledAt?: string;
+  statusHistory?: OrderStatusHistory[];
+  customerRating?: number;
+  ratedAt?: string;
+}
+
+export interface OrderStatusHistory {
+  id: string;
+  status: string;
+  title: string;
+  detail?: string;
+  operator: "customer" | "worker" | "admin" | "system";
+  createdAt: string;
 }
 
 export interface WalletAccount {
@@ -156,6 +285,10 @@ export interface WalletLedger {
   type: LedgerType;
   direction: LedgerDirection;
   amount: number;
+  beforeBalance?: number;
+  afterBalance?: number;
+  targetType?: UserRole | "worker" | "customer" | "platform";
+  relatedType?: string;
   description: string;
   relatedOrderId?: string;
   rechargeOrderId?: string;
@@ -172,6 +305,73 @@ export interface RechargeOrder {
   status: RechargeStatus;
   createdAt: string;
   paidAt?: string;
+}
+
+export interface RechargePackage {
+  id: string;
+  sortOrder: number;
+  amountRmb: number;
+  bonusLockeCoin: number;
+  amountLockeCoin: number;
+  status: RechargePackageStatus;
+  deleted?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  paymentNo: string;
+  type: PaymentRecordType;
+  channel: PaymentRecordChannel;
+  amountRmb: number;
+  amountLockeCoin?: number;
+  status: PaymentRecordStatus;
+  businessId?: string;
+  businessNo?: string;
+  businessLabel: string;
+  userId?: string;
+  userName?: string;
+  workerId?: string;
+  workerName?: string;
+  channelTradeNo?: string;
+  remark?: string;
+  createdAt: string;
+  paidAt?: string;
+  refundedAt?: string;
+}
+
+export interface WithdrawRequest {
+  id: string;
+  requestNo: string;
+  workerId: string;
+  workerName: string;
+  amountLockeCoin: number;
+  feeLockeCoin?: number;
+  actualAmountLockeCoin?: number;
+  receiveInfo?: string;
+  remark?: string;
+  status: WithdrawStatus;
+  adminRemark?: string;
+  createdAt: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  paidAt?: string;
+  completedAt?: string;
+}
+
+export type DepositRefundStatus = "pending" | "approved" | "rejected" | "completed";
+
+export interface DepositRefundRequest {
+  id: string;
+  workerId: string;
+  workerName: string;
+  amountLockeCoin: number;
+  status: DepositRefundStatus;
+  reason?: string;
+  adminRemark?: string;
+  createdAt: string;
+  reviewedAt?: string;
 }
 
 export interface ChatSession {
@@ -199,20 +399,112 @@ export interface ChatMessage {
   isRead: boolean;
 }
 
+export interface AdminLog {
+  id: string;
+  adminId?: string;
+  adminName: string;
+  action?: string;
+  actionType: string;
+  targetType: string;
+  targetId?: string;
+  detail: string;
+  operationAmount?: number;
+  remark?: string;
+  createdAt: string;
+}
+
+export type AdminRoleStatus = "enabled" | "disabled";
+export type AdminUserStatus = "enabled" | "disabled";
+export type AdminMenuType = "directory" | "menu" | "button";
+export type AdminMenuStatus = "visible" | "hidden";
+
+export interface AdminRole {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  status: AdminRoleStatus;
+  permissions: string[];
+  builtIn?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AdminUser {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  avatarUrl?: string;
+  status: AdminUserStatus;
+  roleIds: string[];
+  lastLoginAt?: string;
+  lastLoginIp?: string;
+  createdAt: string;
+  updatedAt?: string;
+  builtIn?: boolean;
+}
+
+export interface AdminMenu {
+  id: string;
+  parentId: string | null;
+  type: AdminMenuType;
+  name: string;
+  routeName?: string;
+  path?: string;
+  componentPath?: string;
+  icon?: string;
+  externalUrl?: string;
+  activePath?: string;
+  sortOrder: number;
+  visible: boolean;
+  cache?: boolean;
+  hidden?: boolean;
+  embedded?: boolean;
+  hiddenTag?: boolean;
+  permissionKey?: string;
+  status: AdminMenuStatus;
+  createdAt: string;
+  updatedAt?: string;
+  builtIn?: boolean;
+}
+
+export interface AdminSession {
+  adminId: string;
+  username: string;
+  name: string;
+  roles: string[];
+  permissions: string[];
+  loginAt: string;
+}
+
 export interface StoreShape {
   users: User[];
   products: Product[];
+  product_categories: ProductCategoryRecord[];
   workers: Worker[];
   announcements: Announcement[];
   orders: Order[];
   wallet_accounts: WalletAccount[];
   wallet_ledger: WalletLedger[];
   recharge_orders: RechargeOrder[];
+  recharge_packages: RechargePackage[];
+  withdraw_requests: WithdrawRequest[];
+  deposit_refunds: DepositRefundRequest[];
   chat_sessions: ChatSession[];
   chat_messages: ChatMessage[];
+  admin_roles: AdminRole[];
+  admin_users: AdminUser[];
+  admin_menus: AdminMenu[];
+  admin_logs: AdminLog[];
 }
 
 export interface CustomerSession {
   user: User;
+  wallet: WalletAccount;
+}
+
+export interface WorkerSession {
+  worker: Worker;
   wallet: WalletAccount;
 }

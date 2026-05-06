@@ -51,6 +51,86 @@ input {
     @apply h-12 w-full rounded-[12px] border border-stone-200 bg-white/95 px-3 text-base outline-none transition placeholder:text-slate-400 focus:border-rock-gold focus:ring-4 focus:ring-rock-gold/20;
   }
 
+  .admin-field {
+    @apply h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100;
+  }
+
+  .admin-textarea {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100;
+  }
+
+  .admin-cancel {
+    @apply h-11 rounded-xl border border-blue-200 bg-white px-6 text-sm font-black text-blue-600;
+  }
+
+  .admin-confirm {
+    @apply h-11 rounded-xl bg-blue-600 px-6 text-sm font-black text-white;
+  }
+
+  .admin-primary {
+    @apply inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-black text-white transition hover:bg-blue-700;
+  }
+
+  .admin-secondary {
+    @apply inline-flex h-10 items-center justify-center rounded-xl border border-blue-200 bg-white px-5 text-sm font-black text-blue-600 transition hover:bg-blue-50;
+  }
+
+  .admin-button {
+    @apply inline-flex h-10 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-black text-white transition hover:bg-blue-700;
+  }
+
+  .admin-button-secondary {
+    @apply inline-flex h-10 items-center justify-center rounded-xl border border-blue-200 bg-white px-5 text-sm font-black text-blue-600 transition hover:bg-blue-50;
+  }
+
+  .admin-input {
+    @apply h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-50 disabled:bg-slate-100 disabled:text-slate-400;
+  }
+
+  .admin-textarea {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-bold text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-50;
+  }
+
+  .admin-link {
+    @apply text-sm font-black text-blue-600 hover:text-blue-800;
+  }
+
+  .admin-table {
+    @apply w-full min-w-[980px] border-collapse text-left text-sm;
+  }
+
+  .admin-table th {
+    @apply whitespace-nowrap border-b border-slate-100 bg-slate-50 px-4 py-3 text-xs font-black text-slate-400;
+  }
+
+  .admin-table td {
+    @apply border-b border-slate-100 px-4 py-4 align-middle text-sm font-bold text-slate-600;
+  }
+
+  .admin-modal-backdrop {
+    @apply fixed inset-0 z-50 grid place-items-center bg-slate-950/45 p-4;
+  }
+
+  .admin-modal {
+    @apply max-h-[88vh] overflow-y-auto rounded-2xl bg-white shadow-2xl;
+  }
+
+  .admin-modal-title {
+    @apply flex items-center justify-between border-b border-slate-100 px-6 py-4 text-xl font-black text-slate-900;
+  }
+
+  .admin-modal-title button {
+    @apply grid h-9 w-9 place-items-center rounded-xl text-2xl font-light text-slate-400 hover:bg-slate-100 hover:text-slate-700;
+  }
+
+  .admin-modal-footer {
+    @apply flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4;
+  }
+
+  .admin-close {
+    @apply grid h-9 w-9 place-items-center rounded-xl text-2xl font-light text-slate-400 hover:bg-slate-100 hover:text-slate-700;
+  }
+
   .image-placeholder {
     @apply grid place-items-center rounded-[16px] bg-gradient-to-br from-stone-200 via-amber-50 to-white text-center text-xs font-black text-amber-700;
   }

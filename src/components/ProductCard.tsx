@@ -15,6 +15,8 @@ export function ProductCard({
   variant?: "list" | "compact";
 }) {
   const query = workerId ? `?workerId=${workerId}` : "";
+  const image = product.homeImageUrl || product.imageUrl;
+  const sales = (product.realSales ?? product.sales) + (product.virtualSales ?? 0);
 
   if (variant === "compact") {
     return (
@@ -23,7 +25,7 @@ export function ProductCard({
         className="panel block overflow-hidden p-2 active:scale-[0.995]"
       >
         <SafeImage
-          src={product.imageUrl}
+          src={image}
           alt={product.name}
           className="aspect-square w-full rounded-[14px] text-[11px]"
           imgClassName="object-contain scale-[0.9]"
@@ -41,7 +43,7 @@ export function ProductCard({
     <Link href={`/customer/product/${product.id}${query}`} className="panel block p-3 active:scale-[0.995]">
       <div className="flex gap-3">
         <SafeImage
-          src={product.imageUrl}
+          src={image}
           alt={product.name}
           className="h-20 w-20 shrink-0 rounded-[16px]"
           imgClassName="object-contain scale-[0.9]"
@@ -57,7 +59,7 @@ export function ProductCard({
           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{product.description}</p>
           <div className="mt-2 flex items-center justify-between">
             <span className="text-lg font-black text-orange-500">{formatCurrency(product.priceRmb)}</span>
-            <span className="text-xs font-bold text-slate-400">销量 {product.sales}</span>
+            <span className="text-xs font-bold text-slate-400">销量 {sales}</span>
           </div>
         </div>
       </div>
