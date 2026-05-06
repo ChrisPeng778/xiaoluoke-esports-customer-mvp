@@ -13,7 +13,9 @@ import {
   createServiceOrder,
   formatCurrency,
   formatRock,
+  getAvailablePaymentMethods,
   getProduct,
+  getSystemSettings,
   getWorker,
 } from "@/lib/store";
 import type { AssignmentType, PaymentMethod } from "@/lib/types";
@@ -41,6 +43,8 @@ function OrderConfirmContent() {
   const [agreed, setAgreed] = useState(false);
   const [agreementOpen, setAgreementOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const settings = getSystemSettings();
+  const availablePaymentMethods = getAvailablePaymentMethods();
 
   const product = getProduct(params.productId);
   const selectedWorker = searchParams.get("workerId") ? getWorker(searchParams.get("workerId")!) : null;
@@ -73,7 +77,11 @@ function OrderConfirmContent() {
       return;
     }
     if (!agreed) {
-      setMessage("请先阅读并同意《下单协议》");
+      setMessage("请先阅读并同意《下单必看》");
+      return;
+    }
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      setMessage("当前支付方式暂未开通");
       return;
     }
 
@@ -173,16 +181,22 @@ function OrderConfirmContent() {
             <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
             我已阅读并同意
             <button type="button" className="font-black text-amber-700" onClick={() => setAgreementOpen(true)}>
-              《下单协议》
+              《下单必看》
             </button>
           </label>
         </div>
 
+        <div className="panel p-4">
+          <h2 className="text-lg font-black text-slate-900">下单必看</h2>
+          <p className="mt-3 line-clamp-4 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-500">{settings.order.mustReadContent}</p>
+          <button type="button" className="mt-3 text-sm font-black text-amber-700" onClick={() => setAgreementOpen(true)}>查看完整说明</button>
+        </div>
+
         <div className="panel space-y-3 p-4">
           <h2 className="text-lg font-black text-slate-900">支付方式</h2>
-          <PayButton label={`微信支付：${formatCurrency(total.rmb)}`} active={paymentMethod === "wechat"} onClick={() => setPaymentMethod("wechat")} />
-          <PayButton label={`支付宝支付：${formatCurrency(total.rmb)}`} active={paymentMethod === "alipay"} onClick={() => setPaymentMethod("alipay")} />
-          <PayButton label={`洛克贝支付：${formatRock(total.locke)} 洛克贝`} active={paymentMethod === "locke_coin"} onClick={() => setPaymentMethod("locke_coin")} />
+          {availablePaymentMethods.includes("wechat") ? <PayButton label={`微信支付：${formatCurrency(total.rmb)}`} active={paymentMethod === "wechat"} onClick={() => setPaymentMethod("wechat")} /> : null}
+          {availablePaymentMethods.includes("locke_coin") ? <PayButton label={`洛克贝支付：${formatRock(total.locke)} 洛克贝`} active={paymentMethod === "locke_coin"} onClick={() => setPaymentMethod("locke_coin")} /> : null}
+          {!availablePaymentMethods.includes("wechat") ? <p className="rounded-[14px] bg-slate-50 px-4 py-3 text-sm font-black text-slate-400">微信支付暂未开通，当前使用洛克贝余额支付。</p> : null}
         </div>
 
         <div className="panel flex items-center justify-between p-4">
@@ -203,8 +217,8 @@ function OrderConfirmContent() {
       {agreementOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-end bg-slate-950/35 px-4 pb-4">
           <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-[20px] bg-white p-5">
-            <h2 className="text-xl font-black text-slate-900">下单协议</h2>
-            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{agreementText}</p>
+            <h2 className="text-xl font-black text-slate-900">下单必看</h2>
+            <p className="mt-3 whitespace-pre-line text-sm leading-6 text-slate-600">{settings.order.mustReadContent}</p>
             <button className="primary-button mt-5 w-full" onClick={() => setAgreementOpen(false)}>
               我知道了
             </button>
@@ -231,6 +245,3 @@ function PayButton({ label, active, onClick }: { label: string; active: boolean;
     </button>
   );
 }
-
-const agreementText =
-  "本平台提供人工协助类服务，下单后请确认自己填写的游戏昵称、ID 编号等信息准确无误。\n\n下单后订单会进入待接单状态，请耐心等待接单员接单。接单员接单后，您可以在订单详情中与接单员沟通服务细节。\n\n如订单长时间无人接单，您可以联系客服或等待系统处理。若服务未完成或存在疑问，请在订单页面提交“有疑问”，平台管理员会根据订单记录进行处理。\n\n请勿恶意辱骂、催促或骚扰接单员。平台禁止外挂、脚本、BUG、盗号、违规刷取资源等行为。";

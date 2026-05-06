@@ -361,7 +361,7 @@ function buildTrendRows(orders: OrderCompat[]) {
     date.setDate(date.getDate() - (days - 1 - index));
     const key = date.toISOString().slice(0, 10);
     const rows = orders.filter((order) => order.createdAt.slice(0, 10) === key);
-    const stats = summarizeOrders(rows, { workers: [], users: [], products: [], product_categories: [], announcements: [], orders: [], wallet_accounts: [], wallet_ledger: [], recharge_orders: [], recharge_packages: [], withdraw_requests: [], deposit_refunds: [], chat_sessions: [], chat_messages: [], admin_roles: [], admin_users: [], admin_menus: [], admin_logs: [] });
+    const stats = summarizeOrders(rows, { workers: [] } as unknown as StoreShape);
     return { label: key.slice(5), orderCount: rows.length, gmv: stats.gmv, aov: stats.aov, completionRate: stats.completionRate, cancelRate: stats.cancelRate, complaintRate: stats.complaintRate, avgDispatchMinutes: stats.avgDispatchMinutes, workerCapacity: stats.workerCapacity };
   });
 }

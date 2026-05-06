@@ -1,4 +1,4 @@
-import type { AdminMenu, AdminRole, AdminUser, Announcement, Product, ProductCategoryRecord, RechargePackage, StoreShape, Worker } from "./types";
+import type { AdminMenu, AdminRole, AdminUser, Announcement, Product, ProductCategoryRecord, RechargePackage, StoreShape, SystemSettings, Worker } from "./types";
 
 const createdAt = "2026-05-02T00:00:00.000Z";
 const serviceDescription =
@@ -229,6 +229,144 @@ export const initialRechargePackages: RechargePackage[] = [
   { id: "recharge-package-500", sortOrder: 40, amountRmb: 500, bonusLockeCoin: 60, amountLockeCoin: 560, status: "active", deleted: false, createdAt, updatedAt: createdAt },
 ];
 
+const defaultAgreement = "当前为测试版协议内容。正式版本上线前，平台会补充完整条款、服务边界、售后规则与隐私说明。";
+const defaultDepositRule =
+  "1. 接单员所有订单已结束的情况下可以申请退保。\n2. 退保申请后，管理员审核通过后退还保证金。\n3. 退保审核期间接单员不可接单。\n4. 退保成功后，保证金退回接单员余额。\n5. 若存在未完成订单、投诉订单或违规记录，平台可暂缓退保。";
+
+export const initialSystemSettings: SystemSettings = {
+  basic: {
+    appName: "小洛克电竞",
+    appLogo: "",
+    favicon: "",
+    siteName: "小洛克电竞",
+    recordInfo: "",
+    copyright: "© 2026 小洛克电竞 All rights reserved.",
+    miniProgramReviewMode: false,
+  },
+  tip: {
+    enabled: true,
+    quickAmounts: [10, 20, 30],
+  },
+  customerService: {
+    miniProgram: {
+      type: "normal",
+      enterpriseWechat: { corpId: "", serviceUrl: "", serviceId: "", qrCode: "", enabled: true },
+      normal: { qrCode: "", phone: "", wechatId: "" },
+    },
+    h5: {
+      type: "normal",
+      enterpriseWechat: { corpId: "", serviceUrl: "", serviceId: "", qrCode: "", enabled: true },
+      normal: { qrCode: "", phone: "", wechatId: "" },
+      officialAccount: { appId: "", customerServiceUrl: "", oauthRedirectUrl: "", jsapiEnabled: false },
+    },
+  },
+  sms: {
+    enabled: false,
+    provider: "disabled",
+    accessKeyId: "",
+    accessKeySecret: "",
+    signName: "",
+    loginTemplateId: "",
+    notificationTemplateId: "",
+  },
+  notification: {
+    unreadChatReminderMinutes: 5,
+    unacceptedOrderReminderMinutes: 5,
+  },
+  agreements: {
+    userAgreementTitle: "用户服务协议",
+    userAgreementContent: defaultAgreement,
+    privacyAgreementTitle: "隐私协议",
+    privacyAgreementContent: defaultAgreement,
+    workerAgreementTitle: "接单员服务协议",
+    workerAgreementContent: defaultAgreement,
+    depositRuleTitle: "保证金规则说明",
+    depositRuleContent: defaultDepositRule,
+  },
+  worker: {
+    minimumDepositAmount: 100,
+    depositRuleContent: defaultDepositRule,
+  },
+  payment: {
+    channels: [
+      {
+        key: "balance",
+        name: "余额支付",
+        enabled: true,
+        configured: true,
+        sortOrder: 1,
+        environment: "production",
+        serviceProviderMode: false,
+        loggingEnabled: false,
+        officialAccountAppId: "",
+        miniProgramAppId: "",
+        mchId: "",
+        apiV3Key: "",
+        certificate: "",
+        privateKey: "",
+        callbackUrl: "",
+      },
+      {
+        key: "wechat_jsapi",
+        name: "公众号支付",
+        enabled: false,
+        configured: false,
+        sortOrder: 2,
+        environment: "production",
+        serviceProviderMode: false,
+        loggingEnabled: false,
+        officialAccountAppId: "",
+        miniProgramAppId: "",
+        mchId: "",
+        apiV3Key: "",
+        certificate: "",
+        privateKey: "",
+        callbackUrl: "/api/payment/callback/wechat_pay",
+      },
+      {
+        key: "wechat_mini",
+        name: "小程序支付",
+        enabled: false,
+        configured: false,
+        sortOrder: 3,
+        environment: "production",
+        serviceProviderMode: false,
+        loggingEnabled: false,
+        officialAccountAppId: "",
+        miniProgramAppId: "",
+        mchId: "",
+        apiV3Key: "",
+        certificate: "",
+        privateKey: "",
+        callbackUrl: "/api/payment/callback/wechat_pay",
+      },
+    ],
+  },
+  order: {
+    paymentTimeoutMinutes: 30,
+    autoConfirmHours: 72,
+    primaryWorkerCanSelectAssistants: true,
+    mustReadContent:
+      "下单后请先检查自己提供的游戏 ID 是否正确。\n请保持页面可联系，接单员接单后可在订单详情内沟通。\n请勿恶意辱骂或催促接单员。",
+  },
+  businessTarget: {
+    month: new Date().toISOString().slice(0, 7),
+    gmvTarget: null,
+    orderCountTarget: null,
+  },
+  finance: {
+    minimumWithdrawAmount: 100,
+    withdrawFeeRate: 0.02,
+    walletReserveAmount: 0,
+    withdrawMethod: "manual_offline",
+  },
+  resources: {
+    records: [
+      { id: "resource-default-product", name: "default-product.jpg", type: "image", url: "/images/products/default-product.jpg", size: 0, createdAt },
+    ],
+  },
+};
+
 const adminMenu = (
   id: string,
   parentId: string | null,
@@ -338,8 +476,19 @@ export const initialAdminMenus: AdminMenu[] = [
   adminMenu("btn-permissions-assign", "menu-permissions-roles", "button", "分配权限", "", "permissions.assign", 169, true),
 
   adminMenu("menu-settings", null, "directory", "设置", "/admin/settings", "settings.view", 100),
-  adminMenu("menu-settings-basic", "menu-settings", "menu", "基础设置", "/admin/settings", "settings.view", 90),
-  adminMenu("btn-settings-edit", "menu-settings-basic", "button", "编辑设置", "", "settings.edit", 89, true),
+  adminMenu("menu-settings-basic", "menu-settings", "menu", "基础设置", "/admin/settings/basic", "settings.view", 90),
+  adminMenu("menu-settings-tip", "menu-settings", "menu", "打赏设置", "/admin/settings/tip", "settings.view", 89),
+  adminMenu("menu-settings-customer-service", "menu-settings", "menu", "客服设置", "/admin/settings/customer-service", "settings.view", 88),
+  adminMenu("menu-settings-sms", "menu-settings", "menu", "短信配置", "/admin/settings/sms", "settings.view", 87),
+  adminMenu("menu-settings-notification", "menu-settings", "menu", "通知设置", "/admin/settings/notification", "settings.view", 86),
+  adminMenu("menu-settings-agreement", "menu-settings", "menu", "政策协议", "/admin/settings/agreement", "settings.view", 85),
+  adminMenu("menu-settings-worker", "menu-settings", "menu", "接单员配置", "/admin/settings/worker", "settings.view", 84),
+  adminMenu("menu-settings-payment", "menu-settings", "menu", "支付配置", "/admin/settings/payment", "settings.view", 83),
+  adminMenu("menu-settings-order", "menu-settings", "menu", "订单设置", "/admin/settings/order", "settings.view", 82),
+  adminMenu("menu-settings-business-target", "menu-settings", "menu", "经营目标", "/admin/settings/business-target", "settings.view", 81),
+  adminMenu("menu-settings-finance", "menu-settings", "menu", "财务配置", "/admin/settings/finance", "settings.view", 80),
+  adminMenu("menu-settings-resources", "menu-settings", "menu", "资源管理", "/admin/settings/resources", "settings.view", 79),
+  adminMenu("btn-settings-edit", "menu-settings-basic", "button", "编辑设置", "", "settings.edit", 78, true),
 ];
 
 const allAdminPermissionKeys = Array.from(new Set(initialAdminMenus.map((item) => item.permissionKey).filter(Boolean))) as string[];
@@ -447,4 +596,5 @@ export const initialStore: StoreShape = {
   admin_users: initialAdminUsers,
   admin_menus: initialAdminMenus,
   admin_logs: [],
+  system_settings: initialSystemSettings,
 };

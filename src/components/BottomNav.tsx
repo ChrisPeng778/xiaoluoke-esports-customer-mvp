@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { getSystemSettings } from "@/lib/store";
 
 const items = [
   { href: "/customer/home", label: "首页", icon: "⌂" },
@@ -12,9 +13,15 @@ const items = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const settings = getSystemSettings();
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/60 bg-[#f7f1e8]/95 px-3 pb-3 pt-2 backdrop-blur">
+      {(settings.basic.recordInfo || settings.basic.copyright) ? (
+        <p className="mx-auto mb-1 max-w-[430px] truncate text-center text-[10px] font-bold text-stone-400">
+          {[settings.basic.recordInfo, settings.basic.copyright].filter(Boolean).join(" · ")}
+        </p>
+      ) : null}
       <div className="mx-auto grid max-w-[430px] grid-cols-4 gap-2">
         {items.map((item) => {
           const active =

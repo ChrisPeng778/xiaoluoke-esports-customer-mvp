@@ -16,7 +16,7 @@ const navItems = [
   { label: "营销", href: "/admin/announcements", icon: "♢", permission: "announcements.view" },
   { label: "反馈", href: "/admin/feedback", icon: "!", permission: "feedback.feedback.view" },
   { label: "权限", href: "/admin/permissions/roles", icon: "⌘", permission: "permissions.roles.manage" },
-  { label: "设置", href: "/admin/settings", icon: "⚙", permission: "settings.view" },
+  { label: "设置", href: "/admin/settings/basic", icon: "⚙", permission: "settings.view" },
 ];
 
 const quickTabs: Array<{ label: string; href: string; permission: string }> = [
@@ -38,7 +38,7 @@ const quickTabs: Array<{ label: string; href: string; permission: string }> = [
   { label: "角色管理", href: "/admin/permissions/roles", permission: "permissions.roles.manage" },
   { label: "管理员管理", href: "/admin/permissions/admin-users", permission: "permissions.admin_users.manage" },
   { label: "菜单管理", href: "/admin/permissions/menus", permission: "permissions.menus.manage" },
-  { label: "基础设置", href: "/admin/settings", permission: "settings.view" },
+  { label: "基础设置", href: "/admin/settings/basic", permission: "settings.view" },
   { label: "反馈列表", href: "/admin/feedback", permission: "feedback.feedback.view" },
 ];
 

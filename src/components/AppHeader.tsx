@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { CustomerSession } from "@/lib/types";
-import { formatRock } from "@/lib/store";
+import { formatRock, getSystemSettings } from "@/lib/store";
 
 const rootPaths = new Set(["/customer", "/customer/home", "/customer/categories", "/customer/workers", "/customer/profile", "/login"]);
 
 export function AppHeader({ session }: { session?: CustomerSession | null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const settings = getSystemSettings();
   const showBack = !rootPaths.has(pathname);
 
   return (
@@ -27,11 +28,9 @@ export function AppHeader({ session }: { session?: CustomerSession | null }) {
             </button>
           ) : null}
           <Link href="/customer/home" className="flex min-w-0 items-center gap-2">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] bg-rock-gold text-lg font-black text-slate-900">
-              洛
-            </span>
+            {settings.basic.appLogo ? <img src={settings.basic.appLogo} alt={settings.basic.appName} className="h-9 w-9 shrink-0 rounded-[12px] object-cover" /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] bg-rock-gold text-lg font-black text-slate-900">洛</span>}
             <div className="min-w-0">
-              <p className="truncate text-base font-black leading-tight text-rock-ink">小洛克电竞</p>
+              <p className="truncate text-base font-black leading-tight text-rock-ink">{settings.basic.appName}</p>
               <p className="text-xs font-medium text-stone-500">H5 Customer</p>
             </div>
           </Link>

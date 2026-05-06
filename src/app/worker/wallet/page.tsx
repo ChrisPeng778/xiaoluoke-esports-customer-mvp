@@ -5,10 +5,14 @@ import { EmptyState } from "@/components/EmptyState";
 import { WorkerBottomNav } from "@/components/WorkerBottomNav";
 import { WorkerHeader } from "@/components/WorkerHeader";
 import { useWorkerSession } from "@/lib/hooks";
-import { formatRock, readStore } from "@/lib/store";
+import { createWithdrawRequestAsCurrentWorker, formatRock, readStore } from "@/lib/store";
+import { useState } from "react";
 
 export default function WorkerWalletPage() {
-  const { session, ready } = useWorkerSession();
+  const { session, ready, refresh } = useWorkerSession();
+  const [amount, setAmount] = useState("");
+  const [receiveInfo, setReceiveInfo] = useState("");
+  const [message, setMessage] = useState("");
 
   if (!ready) return null;
 
@@ -23,7 +27,23 @@ export default function WorkerWalletPage() {
   }
 
   const store = readStore();
+  const finance = store.system_settings.finance;
+  const tipEnabled = store.system_settings.tip.enabled;
+  const withdrawable = Math.max(0, session.wallet.availableBalance - finance.walletReserveAmount);
   const ledgers = store.wallet_ledger.filter((item) => item.userId === session.worker.id).slice(0, 20);
+
+  const submitWithdraw = () => {
+    setMessage("");
+    try {
+      createWithdrawRequestAsCurrentWorker({ amountLockeCoin: Number(amount), receiveInfo, remark: "接单员端提交提现申请" });
+      setAmount("");
+      setReceiveInfo("");
+      refresh();
+      setMessage("提现申请已提交，等待管理员审核。");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "提交失败");
+    }
+  };
 
   return (
     <main className="page-shell">
@@ -37,15 +57,19 @@ export default function WorkerWalletPage() {
           <div className="mt-4 grid grid-cols-3 gap-2">
             <Metric label="累计获得" value={formatRock(session.worker.totalEarned)} />
             <Metric label="服务收入" value={formatRock(session.worker.serviceIncome)} />
-            <Metric label="打赏收入" value={formatRock(session.worker.tipIncome)} />
+            <Metric label="打赏收入" value={tipEnabled ? formatRock(session.worker.tipIncome) : "0"} />
           </div>
         </div>
 
         <div className="panel p-4">
           <h2 className="text-lg font-black text-slate-900">提取申请</h2>
-          <p className="mt-2 text-sm font-bold leading-6 text-stone-500">
-            提取功能正在完善中。后续接单员提交洛克贝提取申请，管理员审批后线下处理。
-          </p>
+          <p className="mt-2 text-sm font-bold leading-6 text-stone-500">最低提现 {formatRock(finance.minimumWithdrawAmount)} 洛克贝，手续费 {finance.withdrawFeeRate * 100}%，钱包留存 {formatRock(finance.walletReserveAmount)} 洛克贝。当前可提现 {formatRock(withdrawable)} 洛克贝。</p>
+          <div className="mt-3 space-y-2">
+            <input className="field" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^\d.]/g, ""))} placeholder="提现金额" />
+            <input className="field" value={receiveInfo} onChange={(event) => setReceiveInfo(event.target.value)} placeholder="收款信息（当前线下人工处理）" />
+            <button className="primary-button w-full" onClick={submitWithdraw}>提交提现申请</button>
+            {message ? <p className="rounded-[14px] bg-blue-50 px-3 py-3 text-sm font-black text-blue-700">{message}</p> : null}
+          </div>
         </div>
 
         <div className="panel p-4">

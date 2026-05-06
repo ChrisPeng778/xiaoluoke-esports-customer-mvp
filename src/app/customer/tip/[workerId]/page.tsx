@@ -11,13 +11,13 @@ import {
   createTipOrder,
   formatCurrency,
   formatRock,
+  getAvailablePaymentMethods,
+  getSystemSettings,
   getWorker,
   validateTipAmount,
   workerLevelLabel,
 } from "@/lib/store";
 import type { PaymentMethod } from "@/lib/types";
-
-const quickAmounts = [1, 5, 10, 20];
 
 export default function TipPage() {
   const params = useParams<{ workerId: string }>();
@@ -28,6 +28,8 @@ export default function TipPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("locke_coin");
   const [remark, setRemark] = useState("");
   const [message, setMessage] = useState("");
+  const settings = getSystemSettings();
+  const availablePaymentMethods = getAvailablePaymentMethods();
   const worker = getWorker(params.workerId);
   const preview = validateTipAmount(amountText);
 
@@ -43,6 +45,16 @@ export default function TipPage() {
     );
   }
 
+  if (!settings.tip.enabled) {
+    return (
+      <main className="page-shell">
+        <AppHeader session={session} />
+        <EmptyState title="打赏暂未开放" description="管理端已关闭打赏功能，历史打赏记录仍可查看。" />
+        <BottomNav />
+      </main>
+    );
+  }
+
   const submit = () => {
     setMessage("");
     if (!session) {
@@ -52,6 +64,10 @@ export default function TipPage() {
     const valid = validateTipAmount(amountText);
     if (!valid.ok) {
       setMessage(valid.message);
+      return;
+    }
+    if (!availablePaymentMethods.includes(paymentMethod)) {
+      setMessage("当前支付方式暂未开通");
       return;
     }
     const result = createTipOrder({ workerId: worker.id, amount: valid.amount, paymentMethod, remark });
@@ -80,7 +96,7 @@ export default function TipPage() {
             <input className="field" inputMode="decimal" value={amountText} onChange={(e) => setAmountText(e.target.value)} />
           </label>
           <div className="grid grid-cols-4 gap-2">
-            {quickAmounts.map((amount) => (
+            {settings.tip.quickAmounts.map((amount) => (
               <button key={amount} className="secondary-button min-h-10 px-2" onClick={() => setAmountText(String(amount))}>
                 ¥{amount}
               </button>
@@ -96,9 +112,8 @@ export default function TipPage() {
 
         <div className="panel space-y-3 p-4">
           <h2 className="text-lg font-black text-slate-900">支付方式</h2>
-          <Pay label={`微信支付：${preview.ok ? formatCurrency(preview.amount) : "¥0.00"}`} active={paymentMethod === "wechat"} onClick={() => setPaymentMethod("wechat")} />
-          <Pay label={`支付宝支付：${preview.ok ? formatCurrency(preview.amount) : "¥0.00"}`} active={paymentMethod === "alipay"} onClick={() => setPaymentMethod("alipay")} />
-          <Pay label={`洛克贝支付：${preview.ok ? formatRock(preview.amount) : "0"} 洛克贝`} active={paymentMethod === "locke_coin"} onClick={() => setPaymentMethod("locke_coin")} />
+          {availablePaymentMethods.includes("wechat") ? <Pay label={`微信支付：${preview.ok ? formatCurrency(preview.amount) : "¥0.00"}`} active={paymentMethod === "wechat"} onClick={() => setPaymentMethod("wechat")} /> : null}
+          {availablePaymentMethods.includes("locke_coin") ? <Pay label={`洛克贝支付：${preview.ok ? formatRock(preview.amount) : "0"} 洛克贝`} active={paymentMethod === "locke_coin"} onClick={() => setPaymentMethod("locke_coin")} /> : null}
         </div>
 
         {message ? <p className="rounded-[14px] bg-rose-50 px-4 py-3 text-sm font-black text-rose-600">{message}</p> : null}

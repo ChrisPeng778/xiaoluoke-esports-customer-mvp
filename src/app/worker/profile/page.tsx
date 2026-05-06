@@ -8,7 +8,7 @@ import { WorkerBottomNav } from "@/components/WorkerBottomNav";
 import { WorkerHeader } from "@/components/WorkerHeader";
 import { WorkerStatusToggle } from "@/components/WorkerStatusToggle";
 import { useWorkerSession } from "@/lib/hooks";
-import { formatRock, logoutWorker, setCurrentWorkerOnlineStatus, updateCurrentWorkerAvatar, updateCurrentWorkerIntro, updateCurrentWorkerName, workerLevelLabel } from "@/lib/store";
+import { formatRock, getSystemSettings, logoutWorker, setCurrentWorkerOnlineStatus, updateCurrentWorkerAvatar, updateCurrentWorkerIntro, updateCurrentWorkerName, workerLevelLabel } from "@/lib/store";
 import type { ChangeEvent } from "react";
 import type { WorkerStatus } from "@/lib/types";
 
@@ -29,6 +29,7 @@ export default function WorkerProfilePage() {
   const [editingName, setEditingName] = useState(false);
   const [workerName, setWorkerName] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const settings = getSystemSettings();
 
   if (!ready) return null;
 
@@ -177,6 +178,12 @@ export default function WorkerProfilePage() {
             <Metric label="可提取洛克贝" value={formatRock(session.wallet.availableBalance)} />
             <Metric label="累计获得" value={formatRock(session.wallet.totalEarned)} />
           </div>
+        </div>
+
+        <div className="panel p-4">
+          <h2 className="text-lg font-black text-slate-900">保证金规则</h2>
+          <p className="mt-2 text-sm font-black text-amber-700">最低保证金 {formatRock(settings.worker.minimumDepositAmount)} 洛克贝</p>
+          <p className="mt-3 whitespace-pre-wrap text-sm font-bold leading-6 text-slate-500">{settings.worker.depositRuleContent}</p>
         </div>
 
         <div className="panel p-4">

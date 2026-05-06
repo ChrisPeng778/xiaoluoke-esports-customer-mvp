@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { AuthPrompt } from "@/components/AuthPrompt";
 import { BottomNav } from "@/components/BottomNav";
 import { useCustomerSession } from "@/lib/hooks";
-import { formatRock, logout, nextLevelGap, updateCurrentNickname, updateCurrentUserAvatar } from "@/lib/store";
+import { formatRock, getSystemSettings, logout, nextLevelGap, updateCurrentNickname, updateCurrentUserAvatar } from "@/lib/store";
 import type { ChangeEvent } from "react";
 
 const orderEntries = [
@@ -38,6 +38,7 @@ export default function ProfilePage() {
   const [nickname, setNickname] = useState("");
   const [avatarMessage, setAvatarMessage] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const settings = getSystemSettings();
 
   if (!ready) return null;
 
@@ -59,6 +60,9 @@ export default function ProfilePage() {
 
   const gap = nextLevelGap(session.wallet.totalSpent);
   const progress = Math.min(100, Math.round(gap.progress * 100));
+  const visibleFeatureEntries = settings.basic.miniProgramReviewMode
+    ? featureEntries.filter(([label]) => !["在线客服", "举报投诉"].includes(label))
+    : featureEntries;
 
   const exit = () => {
     logout();
@@ -196,7 +200,7 @@ export default function ProfilePage() {
         <div className="panel p-4">
           <h2 className="text-lg font-black text-slate-900">常用功能</h2>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            {featureEntries.map(([label, href]) => (
+            {visibleFeatureEntries.map(([label, href]) => (
               <button key={label} className="secondary-button min-h-10" onClick={() => router.push(href)}>
                 {label}
               </button>

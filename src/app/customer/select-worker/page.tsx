@@ -6,7 +6,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { BottomNav } from "@/components/BottomNav";
 import { WorkerCard } from "@/components/WorkerCard";
 import { useCustomerSession } from "@/lib/hooks";
-import { getWorkers } from "@/lib/store";
+import { getSystemSettings, getWorkers } from "@/lib/store";
 
 export default function SelectWorkerPage() {
   return (
@@ -21,7 +21,8 @@ function SelectWorkerContent() {
   const productId = searchParams.get("productId");
   const { session, ready } = useCustomerSession();
   const [search, setSearch] = useState("");
-  const workers = useMemo(() => getWorkers(search), [search]);
+  const minimumDeposit = getSystemSettings().worker.minimumDepositAmount;
+  const workers = useMemo(() => getWorkers(search).filter((worker) => minimumDeposit <= 0 || (worker.depositStatus === "paid" && (worker.depositAmount ?? 0) >= minimumDeposit)), [minimumDeposit, search]);
 
   if (!ready) return null;
 

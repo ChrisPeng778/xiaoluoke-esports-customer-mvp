@@ -31,7 +31,9 @@ import type {
   ProductCategory,
   RechargePackage,
   RechargeOrder,
+  ResourceRecord,
   StoreShape,
+  SystemSettings,
   User,
   WalletAccount,
   WalletLedger,
@@ -48,6 +50,7 @@ const SESSION_KEY = "xiaoluoke_customer_mvp_current_user_id";
 const WORKER_SESSION_KEY = "xiaoluoke_worker_mvp_current_worker_id";
 const ADMIN_SESSION_KEY = "xiaoluoke_admin_session";
 const LEGACY_ADMIN_SESSION_KEY = "xiaoluoke_admin_mvp_logged_in";
+const LEGACY_SYSTEM_SETTINGS_KEY = "xiaoluoke_system_settings";
 export const STORE_UPDATED_EVENT = "xiaoluoke_store_updated";
 
 const now = () => new Date().toISOString();
@@ -127,6 +130,77 @@ export function nextLevelGap(totalSpent: number) {
 
 function hasStorage() {
   return typeof window !== "undefined" && Boolean(window.localStorage);
+}
+
+function cloneSettings(settings: SystemSettings): SystemSettings {
+  return JSON.parse(JSON.stringify(settings)) as SystemSettings;
+}
+
+function deepMerge<T>(base: T, patch: unknown): T {
+  if (!patch || typeof patch !== "object") return base;
+  const output = Array.isArray(base) ? [...base] : { ...(base as Record<string, unknown>) };
+  Object.entries(patch as Record<string, unknown>).forEach(([key, value]) => {
+    if (value === undefined) return;
+    const current = (output as Record<string, unknown>)[key];
+    if (Array.isArray(current)) {
+      (output as Record<string, unknown>)[key] = Array.isArray(value) ? value : current;
+    } else if (current && typeof current === "object" && value && typeof value === "object" && !Array.isArray(value)) {
+      (output as Record<string, unknown>)[key] = deepMerge(current, value);
+    } else {
+      (output as Record<string, unknown>)[key] = value;
+    }
+  });
+  return output as T;
+}
+
+function normalizeTipAmounts(amounts: unknown): number[] {
+  const raw = Array.isArray(amounts) ? amounts : initialStore.system_settings.tip.quickAmounts;
+  const values = Array.from(new Set(raw.map((amount) => money(Number(amount))).filter((amount) => amount >= 0.01 && amount <= 9999.99)));
+  return (values.length ? values : [10]).sort((a, b) => a - b).slice(0, 8);
+}
+
+function normalizePaymentChannels(settings: SystemSettings) {
+  const defaults = initialStore.system_settings.payment.channels;
+  settings.payment.channels = defaults.map((defaultChannel) => {
+    const existing = settings.payment.channels.find((channel) => channel.key === defaultChannel.key);
+    return { ...defaultChannel, ...existing };
+  }).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function migrateSystemSettings(raw?: Partial<SystemSettings>): SystemSettings {
+  let settings = deepMerge(cloneSettings(initialStore.system_settings), raw ?? {});
+  if (!raw && hasStorage()) {
+    try {
+      const legacy = window.localStorage.getItem(LEGACY_SYSTEM_SETTINGS_KEY);
+      if (legacy) settings = deepMerge(settings, JSON.parse(legacy) as Partial<SystemSettings>);
+    } catch {
+      settings = cloneSettings(initialStore.system_settings);
+    }
+  }
+  settings.tip.quickAmounts = normalizeTipAmounts(settings.tip.quickAmounts);
+  settings.worker.minimumDepositAmount = Math.max(0, money(Number(settings.worker.minimumDepositAmount) || 0));
+  settings.finance.minimumWithdrawAmount = Math.max(0, money(Number(settings.finance.minimumWithdrawAmount) || 0));
+  settings.finance.withdrawFeeRate = Math.max(0, Math.min(0.5, Number(settings.finance.withdrawFeeRate) || 0));
+  settings.finance.walletReserveAmount = Math.max(0, money(Number(settings.finance.walletReserveAmount) || 0));
+  settings.notification.unreadChatReminderMinutes = Math.max(0, Math.round(Number(settings.notification.unreadChatReminderMinutes) || 0));
+  settings.notification.unacceptedOrderReminderMinutes = Math.max(0, Math.round(Number(settings.notification.unacceptedOrderReminderMinutes) || 0));
+  settings.order.paymentTimeoutMinutes = Math.max(1, Math.round(Number(settings.order.paymentTimeoutMinutes) || 30));
+  settings.order.autoConfirmHours = Math.max(1, Math.round(Number(settings.order.autoConfirmHours) || 72));
+  normalizePaymentChannels(settings);
+  return settings;
+}
+
+function migrateResourceRecord(raw: Partial<ResourceRecord>, index = 0): ResourceRecord {
+  const rawType = raw.type;
+  const type = rawType === "image" || rawType === "video" || rawType === "audio" || rawType === "file" ? rawType : "image";
+  return {
+    id: raw.id ?? makeId("resource"),
+    name: raw.name?.trim() || `资源 ${index + 1}`,
+    type,
+    url: raw.url?.trim() || "",
+    size: Number(raw.size ?? 0) || 0,
+    createdAt: raw.createdAt ?? now(),
+  };
 }
 
 function migrateProduct(raw: Partial<Product> & { price?: number; enabled?: boolean }, index: number): Product {
@@ -626,6 +700,14 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
     const superRoleId = superRole?.id ?? "role-super-admin";
     if (!rootAdmin.roleIds.includes(superRoleId)) rootAdmin.roleIds.unshift(superRoleId);
   }
+  const system_settings = migrateSystemSettings(parsed.system_settings);
+  const resources = (parsed.system_settings?.resources?.records?.length ? parsed.system_settings.resources.records : fresh.system_settings.resources.records).map(migrateResourceRecord);
+  fresh.system_settings.resources.records.forEach((resource) => {
+    if (!resources.some((item) => item.id === resource.id || item.url === resource.url)) {
+      resources.push(migrateResourceRecord(resource, resources.length));
+    }
+  });
+  system_settings.resources.records = resources;
 
   return {
     users,
@@ -685,6 +767,7 @@ function ensureStoreShape(parsed: Partial<StoreShape>): StoreShape {
     admin_users,
     admin_menus,
     admin_logs: (parsed.admin_logs ?? []).map(migrateAdminLog),
+    system_settings,
   };
 }
 
@@ -1504,6 +1587,79 @@ export function appendAdminLog(actionType: string, targetType: string, targetId:
   });
 }
 
+export function getSystemSettings(): SystemSettings {
+  return readStore().system_settings;
+}
+
+export function getResourceRecords(): ResourceRecord[] {
+  return readStore().system_settings.resources.records.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export function adminUpdateSystemSettings<K extends keyof SystemSettings>(
+  section: K,
+  value: SystemSettings[K],
+  actionType: string,
+  detail: string,
+): SystemSettings {
+  requirePermission("settings.edit");
+  return updateStore((store) => {
+    const nextSettings = migrateSystemSettings({
+      ...store.system_settings,
+      [section]: value,
+    } as Partial<SystemSettings>);
+    store.system_settings = nextSettings;
+    addAdminLog(store, actionType, "settings", String(section), detail);
+    return store.system_settings;
+  });
+}
+
+export function adminUpsertResource(input: {
+  id?: string;
+  name: string;
+  type: ResourceRecord["type"];
+  url: string;
+  size?: number;
+}): ResourceRecord {
+  requirePermission("settings.edit");
+  return updateStore((store) => {
+    const resource = migrateResourceRecord({
+      id: input.id,
+      name: input.name,
+      type: input.type,
+      url: input.url,
+      size: input.size ?? 0,
+      createdAt: input.id ? store.system_settings.resources.records.find((item) => item.id === input.id)?.createdAt : now(),
+    }, store.system_settings.resources.records.length);
+    const resources = store.system_settings.resources.records;
+    const existingIndex = resources.findIndex((item) => item.id === resource.id);
+    if (existingIndex >= 0) resources[existingIndex] = resource;
+    else resources.unshift(resource);
+    addAdminLog(store, input.id ? "update_resource_settings" : "create_resource", "resource", resource.id, `${input.id ? "编辑" : "新增"}资源：${resource.name}`);
+    return resource;
+  });
+}
+
+export function adminDeleteResource(resourceId: string) {
+  requirePermission("settings.edit");
+  updateStore((store) => {
+    const resource = store.system_settings.resources.records.find((item) => item.id === resourceId);
+    store.system_settings.resources.records = store.system_settings.resources.records.filter((item) => item.id !== resourceId);
+    addAdminLog(store, "delete_resource", "resource", resourceId, `删除资源：${resource?.name ?? resourceId}`);
+  });
+}
+
+export function getAvailablePaymentMethods(): PaymentMethod[] {
+  const channels = getSystemSettings().payment.channels.filter((channel) => channel.enabled && channel.configured);
+  const methods: PaymentMethod[] = [];
+  if (channels.some((channel) => channel.key === "balance")) methods.push("locke_coin");
+  if (channels.some((channel) => channel.key === "wechat_jsapi" || channel.key === "wechat_mini")) methods.push("wechat");
+  return methods.length ? methods : ["locke_coin"];
+}
+
+export function getMinimumWorkerDeposit() {
+  return money(Number(getSystemSettings().worker.minimumDepositAmount) || 0);
+}
+
 function assertRoleEditable(role: AdminRole, action: "edit" | "delete" | "disable") {
   if (action === "delete" && (role.code === "super_admin" || role.builtIn)) throw new Error("内置角色不能删除");
   if (action === "disable" && role.code === "super_admin") throw new Error("超级管理员角色不能禁用");
@@ -2182,7 +2338,10 @@ export function acceptOrderAsCurrentWorker(orderId: string): Order {
     if (!order) throw new Error("订单不存在");
     if (!worker) throw new Error("接单员不存在");
     if (worker.status === "frozen") throw new Error("账号已被冻结，暂不能接单");
-    if (worker.depositStatus !== "paid" || (worker.depositAmount ?? 0) <= 0) throw new Error("保证金未缴纳，暂不能接单");
+    const minimumDeposit = money(Number(store.system_settings.worker.minimumDepositAmount) || 0);
+    if (minimumDeposit > 0 && (worker.depositStatus !== "paid" || (worker.depositAmount ?? 0) < minimumDeposit)) {
+      throw new Error(`保证金低于 ${formatRock(minimumDeposit)} 洛克贝，暂不能接单`);
+    }
     if (order.orderType !== "service") throw new Error("打赏订单无需接单");
     if (order.status !== "pending") throw new Error("订单已被处理");
     if (order.assignmentType === "specified" && order.specifiedWorkerId !== session.worker.id) {
@@ -3488,12 +3647,17 @@ export function adminCreateWithdrawRequest(input: {
   remark?: string;
 }): WithdrawRequest {
   const amount = money(input.amountLockeCoin);
-  const fee = money(input.feeLockeCoin ?? 0);
   if (amount <= 0) throw new Error("提现金额必须大于 0");
   return updateStore((store) => {
     const worker = store.workers.find((item) => item.id === input.workerId);
     const wallet = store.wallet_accounts.find((item) => item.userId === input.workerId && item.ownerType === "worker");
     if (!worker || !wallet) throw new Error("接单员钱包不存在");
+    const finance = store.system_settings.finance;
+    const reserve = money(finance.walletReserveAmount);
+    const withdrawable = money(Math.max(0, wallet.availableBalance - reserve));
+    const fee = money(input.feeLockeCoin ?? amount * finance.withdrawFeeRate);
+    if (amount < finance.minimumWithdrawAmount) throw new Error(`最低提现金额为 ${formatRock(finance.minimumWithdrawAmount)} 洛克贝`);
+    if (amount > withdrawable) throw new Error(`可提现金额不足，当前可提现 ${formatRock(withdrawable)} 洛克贝`);
     if (wallet.availableBalance < amount) throw new Error("接单员余额不足，不能提交提现");
     const before = wallet.availableBalance;
     wallet.availableBalance = money(wallet.availableBalance - amount);
@@ -3526,6 +3690,59 @@ export function adminCreateWithdrawRequest(input: {
       description: `提现申请冻结：${request.requestNo}`,
     });
     addAdminLog(store, "withdraw_create_by_admin", "withdraw", request.id, `代提交提现：${worker.name} ${formatRock(amount)}`);
+    return request;
+  });
+}
+
+export function createWithdrawRequestAsCurrentWorker(input: {
+  amountLockeCoin: number;
+  receiveInfo?: string;
+  remark?: string;
+}): WithdrawRequest {
+  const session = getCurrentWorkerSession();
+  if (!session) throw new Error("请先登录接单员账号");
+  const amount = money(input.amountLockeCoin);
+  if (amount <= 0) throw new Error("提现金额必须大于 0");
+  return updateStore((store) => {
+    const worker = store.workers.find((item) => item.id === session.worker.id);
+    const wallet = store.wallet_accounts.find((item) => item.userId === session.worker.id && item.ownerType === "worker");
+    if (!worker || !wallet) throw new Error("接单员钱包不存在");
+    const finance = store.system_settings.finance;
+    const reserve = money(finance.walletReserveAmount);
+    const withdrawable = money(Math.max(0, wallet.availableBalance - reserve));
+    const fee = money(amount * finance.withdrawFeeRate);
+    if (amount < finance.minimumWithdrawAmount) throw new Error(`最低提现金额为 ${formatRock(finance.minimumWithdrawAmount)} 洛克贝`);
+    if (amount > withdrawable) throw new Error(`可提现金额不足，当前可提现 ${formatRock(withdrawable)} 洛克贝`);
+    const before = wallet.availableBalance;
+    wallet.availableBalance = money(wallet.availableBalance - amount);
+    wallet.frozenBalance = money(wallet.frozenBalance + amount);
+    wallet.updatedAt = now();
+    syncWorkerWallet(worker, wallet);
+    const request: WithdrawRequest = {
+      id: makeId("withdraw"),
+      requestNo: makeNo("WD"),
+      workerId: worker.id,
+      workerName: worker.name,
+      amountLockeCoin: amount,
+      feeLockeCoin: fee,
+      actualAmountLockeCoin: money(amount - fee),
+      receiveInfo: input.receiveInfo?.trim() || "未填写",
+      remark: input.remark?.trim(),
+      status: "pending",
+      createdAt: now(),
+    };
+    store.withdraw_requests.unshift(request);
+    addLedger(store, {
+      userId: worker.id,
+      type: "withdraw_freeze",
+      direction: "out",
+      amount,
+      beforeBalance: before,
+      afterBalance: wallet.availableBalance,
+      targetType: "worker",
+      relatedType: "withdraw_requests",
+      description: `提现申请冻结：${request.requestNo}`,
+    });
     return request;
   });
 }

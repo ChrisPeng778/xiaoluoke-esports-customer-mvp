@@ -469,6 +469,139 @@ export interface AdminMenu {
   builtIn?: boolean;
 }
 
+export type CustomerServiceMiniProgramType = "disabled" | "wechat_mini_customer_service" | "enterprise_wechat" | "normal";
+export type CustomerServiceH5Type = "disabled" | "enterprise_wechat" | "normal" | "official_account";
+export type SmsProvider = "disabled" | "aliyun" | "tencent" | "other";
+export type PaymentChannelKey = "balance" | "wechat_jsapi" | "wechat_mini";
+export type PaymentEnvironment = "production" | "sandbox";
+export type WithdrawMethod = "manual_offline" | "wechat_transfer" | "alipay_transfer" | "bank_transfer";
+export type ResourceType = "image" | "video" | "audio" | "file";
+
+export interface EnterpriseWechatServiceConfig {
+  corpId: string;
+  serviceUrl: string;
+  serviceId: string;
+  qrCode: string;
+  enabled: boolean;
+}
+
+export interface NormalCustomerServiceConfig {
+  qrCode: string;
+  phone: string;
+  wechatId: string;
+}
+
+export interface OfficialAccountServiceConfig {
+  appId: string;
+  customerServiceUrl: string;
+  oauthRedirectUrl: string;
+  jsapiEnabled: boolean;
+}
+
+export interface CustomerServicePortSettings {
+  type: CustomerServiceMiniProgramType | CustomerServiceH5Type;
+  enterpriseWechat: EnterpriseWechatServiceConfig;
+  normal: NormalCustomerServiceConfig;
+  officialAccount?: OfficialAccountServiceConfig;
+}
+
+export interface PaymentChannelSettings {
+  key: PaymentChannelKey;
+  name: string;
+  enabled: boolean;
+  configured: boolean;
+  sortOrder: number;
+  environment: PaymentEnvironment;
+  serviceProviderMode: boolean;
+  loggingEnabled: boolean;
+  officialAccountAppId: string;
+  miniProgramAppId: string;
+  mchId: string;
+  apiV3Key: string;
+  certificate: string;
+  privateKey: string;
+  callbackUrl: string;
+}
+
+export interface ResourceRecord {
+  id: string;
+  name: string;
+  type: ResourceType;
+  url: string;
+  size: number;
+  createdAt: string;
+}
+
+export interface SystemSettings {
+  basic: {
+    appName: string;
+    appLogo: string;
+    favicon: string;
+    siteName: string;
+    recordInfo: string;
+    copyright: string;
+    miniProgramReviewMode: boolean;
+  };
+  tip: {
+    enabled: boolean;
+    quickAmounts: number[];
+  };
+  customerService: {
+    miniProgram: CustomerServicePortSettings & { type: CustomerServiceMiniProgramType };
+    h5: CustomerServicePortSettings & { type: CustomerServiceH5Type; officialAccount: OfficialAccountServiceConfig };
+  };
+  sms: {
+    enabled: boolean;
+    provider: SmsProvider;
+    accessKeyId: string;
+    accessKeySecret: string;
+    signName: string;
+    loginTemplateId: string;
+    notificationTemplateId: string;
+  };
+  notification: {
+    unreadChatReminderMinutes: number;
+    unacceptedOrderReminderMinutes: number;
+  };
+  agreements: {
+    userAgreementTitle: string;
+    userAgreementContent: string;
+    privacyAgreementTitle: string;
+    privacyAgreementContent: string;
+    workerAgreementTitle: string;
+    workerAgreementContent: string;
+    depositRuleTitle: string;
+    depositRuleContent: string;
+  };
+  worker: {
+    minimumDepositAmount: number;
+    depositRuleContent: string;
+  };
+  payment: {
+    channels: PaymentChannelSettings[];
+  };
+  order: {
+    paymentTimeoutMinutes: number;
+    autoConfirmHours: number;
+    primaryWorkerCanSelectAssistants: boolean;
+    mustReadContent: string;
+  };
+  businessTarget: {
+    month: string;
+    gmvTarget: number | null;
+    orderCountTarget: number | null;
+  };
+  finance: {
+    minimumWithdrawAmount: number;
+    withdrawFeeRate: number;
+    walletReserveAmount: number;
+    withdrawMethod: WithdrawMethod;
+  };
+  resources: {
+    records: ResourceRecord[];
+  };
+}
+
 export interface AdminSession {
   adminId: string;
   username: string;
@@ -497,6 +630,7 @@ export interface StoreShape {
   admin_users: AdminUser[];
   admin_menus: AdminMenu[];
   admin_logs: AdminLog[];
+  system_settings: SystemSettings;
 }
 
 export interface CustomerSession {

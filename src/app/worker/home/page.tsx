@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { SafeImage } from "@/components/SafeImage";
 import { StatusBadge } from "@/components/StatusBadge";
 import { useStoreSync, useWorkerSession } from "@/lib/hooks";
-import { acceptOrderAsCurrentWorker, formatRock, formatTime, getAnnouncements, getCurrentWorkerOrders, getUnreadPinnedAnnouncement, incrementAnnouncementView, markAnnouncementRead } from "@/lib/store";
+import { acceptOrderAsCurrentWorker, formatRock, formatTime, getAnnouncements, getCurrentWorkerOrders, getSystemSettings, getUnreadPinnedAnnouncement, incrementAnnouncementView, markAnnouncementRead } from "@/lib/store";
 import type { Announcement } from "@/lib/types";
 
 export default function WorkerHomePage() {
@@ -42,6 +42,8 @@ export default function WorkerHomePage() {
 
   const pendingOrders = orders.filter((order) => order.orderType === "service" && order.status === "pending").slice(0, 3);
   const activeOrders = orders.filter((order) => ["accepted", "worker_completed", "disputed"].includes(order.status)).slice(0, 3);
+  const minimumDeposit = getSystemSettings().worker.minimumDepositAmount;
+  const depositInsufficient = minimumDeposit > 0 && (session.worker.depositStatus !== "paid" || (session.worker.depositAmount ?? 0) < minimumDeposit);
 
   const accept = (orderId: string) => {
     try {
@@ -87,6 +89,7 @@ export default function WorkerHomePage() {
         ) : null}
 
         {message ? <p className="rounded-[14px] bg-emerald-50 px-3 py-3 text-sm font-black text-emerald-700">{message}</p> : null}
+        {depositInsufficient ? <p className="rounded-[14px] bg-amber-50 px-3 py-3 text-sm font-black text-amber-700">保证金低于 {formatRock(minimumDeposit)} 洛克贝，暂不能接单。请联系平台运营处理保证金。</p> : null}
 
         <SectionTitle title="待接订单" href="/worker/orders?tab=pending" />
         {pendingOrders.length ? (

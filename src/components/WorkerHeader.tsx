@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { WorkerSession } from "@/lib/types";
-import { formatRock, workerLevelLabel } from "@/lib/store";
+import { formatRock, getSystemSettings, workerLevelLabel } from "@/lib/store";
 
 const rootPaths = new Set(["/worker", "/worker/home", "/worker/orders", "/worker/wallet", "/worker/profile", "/worker/login"]);
 
 export function WorkerHeader({ session }: { session?: WorkerSession | null }) {
   const pathname = usePathname();
   const router = useRouter();
+  const settings = getSystemSettings();
   const showBack = !rootPaths.has(pathname);
 
   return (
@@ -27,12 +28,10 @@ export function WorkerHeader({ session }: { session?: WorkerSession | null }) {
             </button>
           ) : null}
           <Link href="/worker/home" className="flex min-w-0 items-center gap-2">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] bg-slate-900 text-lg font-black text-rock-gold">
-              接
-            </span>
+            {settings.basic.appLogo ? <img src={settings.basic.appLogo} alt={settings.basic.appName} className="h-9 w-9 shrink-0 rounded-[12px] object-cover" /> : <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[12px] bg-slate-900 text-lg font-black text-rock-gold">接</span>}
             <div className="min-w-0">
               <p className="truncate text-base font-black leading-tight text-rock-ink">接单员端</p>
-              <p className="text-xs font-medium text-stone-500">小洛克电竞</p>
+              <p className="text-xs font-medium text-stone-500">{settings.basic.appName}</p>
             </div>
           </Link>
         </div>

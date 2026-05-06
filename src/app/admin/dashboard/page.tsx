@@ -30,6 +30,11 @@ export default function AdminDashboardPage() {
   const refundRate = paidOrders.length ? money((refunded.length / paidOrders.length) * 100) : 0;
   const activeUsers = new Set(scopedOrders.map((order) => order.customerId)).size;
   const newWorkers = store.workers.filter((worker) => worker.completedOrderCount <= 60).length;
+  const target = store.system_settings.businessTarget;
+  const targetMonth = target.month || new Date().toISOString().slice(0, 7);
+  const targetOrders = store.orders.filter((order) => order.createdAt.slice(0, 7) === targetMonth);
+  const targetGmv = money(targetOrders.filter((order) => order.status === "settled").reduce((sum, order) => sum + order.amountRmb, 0));
+  const targetOrderCount = targetOrders.length;
 
   const cards = [
     { label: "营收 GMV", value: formatCurrency(gmv), href: "/admin/orders?metric=gmv", tone: "blue" as const },
@@ -110,6 +115,25 @@ export default function AdminDashboardPage() {
         ))}
       </section>
 
+      <section className="mt-6 grid gap-4 md:grid-cols-2">
+        <AdminCard className="p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black">本月 GMV 目标</h2>
+            <Link href="/admin/settings/business-target" className="text-sm font-bold text-blue-600">配置 →</Link>
+          </div>
+          <p className="mt-4 text-2xl font-black text-slate-900">{formatCurrency(targetGmv)} / {target.gmvTarget ? formatCurrency(target.gmvTarget) : "未设置"}</p>
+          <Progress current={targetGmv} target={target.gmvTarget} />
+        </AdminCard>
+        <AdminCard className="p-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-black">本月订单目标</h2>
+            <Link href="/admin/settings/business-target" className="text-sm font-bold text-blue-600">配置 →</Link>
+          </div>
+          <p className="mt-4 text-2xl font-black text-slate-900">{targetOrderCount} / {target.orderCountTarget ?? "未设置"} 单</p>
+          <Progress current={targetOrderCount} target={target.orderCountTarget} />
+        </AdminCard>
+      </section>
+
       <section className="mt-6 grid gap-4 xl:grid-cols-[0.9fr_1.6fr]">
         <AdminCard className="p-5">
           <div className="flex items-center justify-between">
@@ -153,6 +177,16 @@ export default function AdminDashboardPage() {
         </AdminCard>
       </section>
     </AdminLayout>
+  );
+}
+
+function Progress({ current, target }: { current: number; target: number | null }) {
+  const percent = target && target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
+  return (
+    <div className="mt-4">
+      <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${percent}%` }} /></div>
+      <p className="mt-2 text-xs font-black text-slate-400">{target ? `达成 ${percent}%` : "目标为空时不计算达成率"}</p>
+    </div>
   );
 }
 
