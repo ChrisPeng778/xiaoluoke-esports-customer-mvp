@@ -348,7 +348,7 @@ function formToProduct(base: Product | undefined, form: ProductForm): Product {
 function productStats(store: StoreShape, productId?: string) {
   const orders = productId ? store.orders.filter((order) => order.productId === productId) : [];
   const afterSale = orders.filter((order) => ["refunded", "disputed", "after_sale", "after_sale_refunded"].includes(order.status));
-  const gmv = money(orders.filter((order) => !["unpaid", "cancelled", "refunded", "after_sale_refunded"].includes(order.status)).reduce((sum, order) => sum + (order.amountRmb ?? order.amount ?? 0), 0));
+  const gmv = money(orders.filter((order) => order.status === "settled").reduce((sum, order) => sum + (order.amountRmb ?? order.amount ?? 0), 0));
   const trend = Array.from({ length: 7 }, (_, index) => {
     const date = new Date();
     date.setDate(date.getDate() - (6 - index));

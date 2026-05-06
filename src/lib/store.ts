@@ -543,6 +543,11 @@ function migrateOrder(raw: Partial<Order> & { amount?: number; userId?: string }
     startedAt: raw.startedAt,
     submittedAt: raw.submittedAt,
     settledAt: raw.settledAt,
+    cancelledAt: raw.cancelledAt,
+    refundedAt: raw.refundedAt,
+    refundAmount: money(raw.refundAmount ?? 0),
+    refundStatus: raw.refundStatus ?? (raw.paymentStatus === "refunded" || raw.status === "refunded" || raw.status === "after_sale_refunded" ? "refunded" : "none"),
+    refundRemark: raw.refundRemark,
     statusHistory: raw.statusHistory ?? [],
     customerRating: raw.customerRating,
     ratedAt: raw.ratedAt,
@@ -1959,9 +1964,11 @@ function supportResolvedAt(status: SupportTicketStatus) {
 }
 
 function orderFlowStatus(order: Order): OrderStatus {
+  if (order.status === "cancelled" || order.status === "refunded" || order.status === "after_sale_refunded") return order.status;
   if (order.settledAt) return "settled";
   if (order.submittedAt) return "worker_completed";
   if (order.startedAt || order.assignedAt || order.workerId) return "accepted";
+  if (order.paymentStatus === "unpaid") return "unpaid";
   return "pending";
 }
 
@@ -1970,6 +1977,10 @@ function syncOrderSupportFlags(store: StoreShape, order: Order) {
   const hasActiveAfterSale = store.aftersale_orders.some((item) => item.orderId === order.id && activeSupportStatus(item.status));
   order.complaintFlag = hasActiveComplaint;
   order.aftersaleFlag = hasActiveAfterSale;
+  if (order.status === "cancelled" || order.status === "refunded" || order.status === "after_sale_refunded") {
+    order.updatedAt = now();
+    return;
+  }
   if (hasActiveAfterSale) {
     order.status = "after_sale";
   } else if (hasActiveComplaint) {
@@ -2239,12 +2250,26 @@ export function adminUpdateAfterSaleOrder(aftersaleId: string, patch: { status?:
   return updateStore((store) => {
     const aftersale = store.aftersale_orders.find((item) => item.id === aftersaleId);
     if (!aftersale) throw new Error("售后申请不存在");
+    const previousStatus = aftersale.status;
     if (patch.status) aftersale.status = patch.status;
     if (patch.adminReply !== undefined) aftersale.adminReply = patch.adminReply.trim();
     aftersale.updatedAt = now();
     aftersale.resolvedAt = patch.status ? supportResolvedAt(patch.status) : aftersale.resolvedAt;
     const order = store.orders.find((item) => item.id === aftersale.orderId);
     if (order) {
+      const shouldRefund = aftersale.type === "refund" && patch.status === "resolved" && previousStatus !== "resolved" && aftersale.refundAmount > 0 && !hasOrderRefund(store, order);
+      if (shouldRefund) {
+        applyLocalOrderRefund(store, order, {
+          amount: aftersale.refundAmount,
+          nextStatus: "after_sale_refunded",
+          ledgerType: "order_refund",
+          historyTitle: "管理员同意售后并完成本地退款",
+          ledgerDescription: `售后退款：${order.productName ?? order.orderNo}`,
+          chatMessage: "管理员已同意售后申请，并完成本地模拟退款。",
+          remark: aftersale.adminReply || aftersale.reason,
+          allowSettledReverse: true,
+        });
+      }
       order.statusHistory = [
         ...(order.statusHistory ?? []),
         makeStatusHistory(order.status, `管理员处理售后：${aftersale.status}`, "admin", aftersale.adminReply),
@@ -2942,6 +2967,7 @@ export function createTipOrder(input: {
       workerName: worker.name,
       remark: input.remark?.trim(),
       paymentMethod: "locke_coin",
+      paymentStatus: "paid",
       amountRmb: money(input.amount),
       amountLockeCoin: money(input.amount),
       amount: money(input.amount),
@@ -3748,6 +3774,148 @@ function ensureAdminChatMessage(store: StoreShape, order: Order, content: string
   });
 }
 
+function hasOrderRefund(store: StoreShape, order: Order) {
+  return (
+    order.paymentStatus === "refunded" ||
+    order.refundStatus === "refunded" ||
+    order.refundStatus === "partial_refunded" ||
+    order.status === "refunded" ||
+    order.status === "after_sale_refunded" ||
+    store.wallet_ledger.some((entry) =>
+      entry.relatedOrderId === order.id &&
+      entry.userId === order.customerId &&
+      (entry.type === "refund" || entry.type === "order_refund") &&
+      entry.direction === "in",
+    )
+  );
+}
+
+function reverseSettledOrderIncome(store: StoreShape, order: Order, reason: string) {
+  if (!order.settledAt || !order.workerId) return;
+  const worker = store.workers.find((item) => item.id === order.workerId);
+  if (!worker) return;
+  const settlement = calculateOrderSettlementFromStore(store, order, worker);
+  const beforeBalance = worker.availableBalance;
+  const deductedBalance = Math.min(worker.availableBalance, settlement.workerIncome);
+  worker.availableBalance = money(worker.availableBalance - deductedBalance);
+  worker.totalEarned = money(Math.max(0, worker.totalEarned - settlement.workerIncome));
+  worker.serviceIncome = money(Math.max(0, worker.serviceIncome - settlement.workerIncome));
+  worker.completedOrderCount = Math.max(0, worker.completedOrderCount - 1);
+  const workerWallet = store.wallet_accounts.find((item) => item.userId === worker.id && item.ownerType === "worker");
+  if (workerWallet) {
+    workerWallet.availableBalance = worker.availableBalance;
+    workerWallet.totalEarned = worker.totalEarned;
+    workerWallet.updatedAt = now();
+    syncWorkerWallet(worker, workerWallet);
+  }
+  addLedger(store, {
+    userId: worker.id,
+    relatedOrderId: order.id,
+    relatedType: "orders",
+    type: "order_refund",
+    direction: "out",
+    amount: settlement.workerIncome,
+    beforeBalance,
+    afterBalance: worker.availableBalance,
+    targetType: "worker",
+    description: deductedBalance < settlement.workerIncome
+      ? `${reason}，接单员佣金反向标记异常：可用余额不足以全额扣回`
+      : `${reason}，接单员佣金反向扣回`,
+  });
+  if (settlement.platformIncome > 0) {
+    addLedger(store, {
+      userId: "platform",
+      relatedOrderId: order.id,
+      relatedType: "orders",
+      type: "order_refund",
+      direction: "out",
+      amount: settlement.platformIncome,
+      targetType: "platform",
+      description: `${reason}，平台抽成反向流水`,
+    });
+  }
+}
+
+function applyLocalOrderRefund(
+  store: StoreShape,
+  order: Order,
+  input: {
+    amount?: number;
+    nextStatus: OrderStatus;
+    ledgerType: "refund" | "order_refund";
+    historyTitle: string;
+    ledgerDescription: string;
+    chatMessage: string;
+    remark?: string;
+    allowSettledReverse?: boolean;
+  },
+) {
+  if (order.orderType !== "service") throw new Error("打赏订单当前不支持后台退款");
+  if (hasOrderRefund(store, order)) throw new Error("该订单已退款，不能重复处理");
+  if (order.paymentStatus === "unpaid" || order.status === "unpaid") throw new Error("未支付订单不能产生退款流水");
+
+  const user = store.users.find((item) => item.id === order.customerId);
+  const wallet = store.wallet_accounts.find((item) => item.userId === order.customerId);
+  if (!user || !wallet) throw new Error("顾客钱包不存在");
+
+  const refundAmount = money(Math.max(0, Math.min(Number(input.amount ?? order.amountLockeCoin) || 0, order.amountLockeCoin)));
+  if (refundAmount <= 0) throw new Error("退款金额必须大于 0");
+  if (order.settledAt && input.allowSettledReverse !== true) throw new Error("已完成订单请走退款或售后流程，不能直接关闭");
+
+  const beforeAvailable = wallet.availableBalance;
+  if (!order.settledAt) {
+    const frozenRelease = Math.min(wallet.frozenBalance, order.amountLockeCoin);
+    wallet.frozenBalance = money(Math.max(0, wallet.frozenBalance - frozenRelease));
+  } else {
+    wallet.totalSpent = money(Math.max(0, wallet.totalSpent - refundAmount));
+    reverseSettledOrderIncome(store, order, input.historyTitle);
+  }
+  wallet.availableBalance = money(wallet.availableBalance + refundAmount);
+  wallet.memberLevel = calculateMemberLevelFromSettings(wallet.totalSpent, store.member_level_settings);
+  wallet.updatedAt = now();
+  syncUserWallet(user, wallet);
+
+  const isFullRefund = refundAmount >= order.amountLockeCoin;
+  order.status = input.nextStatus;
+  order.paymentStatus = isFullRefund ? "refunded" : "paid";
+  order.refundAmount = refundAmount;
+  order.refundStatus = isFullRefund ? "refunded" : "partial_refunded";
+  order.refundedAt = now();
+  order.refundRemark = input.remark;
+  order.updatedAt = now();
+  order.statusHistory = [
+    ...(order.statusHistory ?? []),
+    makeStatusHistory(input.nextStatus, input.historyTitle, "admin", input.remark),
+  ];
+
+  addLedger(store, {
+    userId: user.id,
+    relatedOrderId: order.id,
+    relatedType: "orders",
+    type: input.ledgerType,
+    direction: "in",
+    amount: refundAmount,
+    beforeBalance: beforeAvailable,
+    afterBalance: wallet.availableBalance,
+    targetType: "customer",
+    description: input.ledgerDescription,
+  });
+  ensureAdminChatMessage(store, order, input.chatMessage);
+  syncOrderSupportFlags(store, order);
+}
+
+function closePaidUnsettledOrder(store: StoreShape, order: Order) {
+  applyLocalOrderRefund(store, order, {
+    nextStatus: "cancelled",
+    ledgerType: "order_refund",
+    historyTitle: "管理员关闭订单并返还顾客余额",
+    ledgerDescription: `关闭订单返还：${order.productName ?? order.orderNo}`,
+    chatMessage: "管理员已关闭订单，已支付洛克贝已返还至顾客余额。",
+    remark: "关闭未完成订单自动返还本地余额",
+  });
+  order.cancelledAt = now();
+}
+
 export function adminSettleOrder(orderId: string): Order {
   requirePermission("orders.settle");
   return updateStore((store) => {
@@ -3755,6 +3923,7 @@ export function adminSettleOrder(orderId: string): Order {
     if (!order) throw new Error("订单不存在");
     if (order.orderType !== "service") throw new Error("打赏订单无需结单");
     if (!["worker_completed", "disputed"].includes(order.status)) throw new Error("当前订单不能管理员结单");
+    if (order.settledAt || hasOrderRefund(store, order)) throw new Error("订单已结算或已退款，不能重复结单");
     const user = store.users.find((item) => item.id === order.customerId);
     const userWallet = store.wallet_accounts.find((item) => item.userId === order.customerId);
     const worker = order.workerId ? store.workers.find((item) => item.id === order.workerId) : null;
@@ -3829,31 +3998,16 @@ export function adminRefundOrder(orderId: string): Order {
     const order = store.orders.find((item) => item.id === orderId);
     if (!order) throw new Error("订单不存在");
     if (order.orderType !== "service") throw new Error("打赏订单当前不支持后台退款");
-    if (!["pending", "accepted", "worker_completed", "disputed"].includes(order.status)) throw new Error("当前订单不能退款");
-    const user = store.users.find((item) => item.id === order.customerId);
-    const wallet = store.wallet_accounts.find((item) => item.userId === order.customerId);
-    if (!user || !wallet) throw new Error("顾客钱包不存在");
-
-    order.status = "refunded";
-    order.updatedAt = now();
-    order.paymentStatus = "refunded";
-    order.statusHistory = [
-      ...(order.statusHistory ?? []),
-      makeStatusHistory("refunded", "管理员处理订单并退款", "admin"),
-    ];
-    wallet.frozenBalance = money(Math.max(0, wallet.frozenBalance - order.amountLockeCoin));
-    wallet.availableBalance = money(wallet.availableBalance + order.amountLockeCoin);
-    wallet.updatedAt = now();
-    syncUserWallet(user, wallet);
-    addLedger(store, {
-      userId: user.id,
-      relatedOrderId: order.id,
-      type: "refund",
-      direction: "in",
-      amount: order.amountLockeCoin,
-      description: `管理员退款：${order.productName}`,
+    if (!["pending", "accepted", "worker_completed", "disputed", "after_sale", "settled"].includes(order.status)) throw new Error("当前订单不能退款");
+    applyLocalOrderRefund(store, order, {
+      nextStatus: "refunded",
+      ledgerType: "refund",
+      historyTitle: order.settledAt ? "管理员对已完成订单做本地退款" : "管理员处理订单并退款",
+      ledgerDescription: `管理员退款：${order.productName ?? order.orderNo}`,
+      chatMessage: "管理员已处理订单并完成本地模拟退款。",
+      remark: order.settledAt ? "已结算订单退款，已写入接单员佣金和平台抽成反向流水" : "后台订单退款",
+      allowSettledReverse: true,
     });
-    ensureAdminChatMessage(store, order, "管理员已处理订单并退款。");
     addAdminLog(store, "order_refund", "order", order.id, `管理员退款：${order.orderNo}`);
     return order;
   });
@@ -3867,6 +4021,61 @@ export function adminUpdateOrderStatus(orderId: string, status: OrderStatus): Or
   return updateStore((store) => {
     const order = store.orders.find((item) => item.id === orderId);
     if (!order) throw new Error("订单不存在");
+    if (order.orderType !== "service" && status !== "cancelled") throw new Error("打赏订单不支持服务状态流转");
+
+    if (status === "cancelled") {
+      if (order.status === "cancelled") throw new Error("订单已关闭，不能重复关闭");
+      if (order.status === "settled" || order.settledAt) throw new Error("已完成订单不能直接关闭，请走售后或退款流程");
+      if (order.status === "refunded" || order.status === "after_sale_refunded" || hasOrderRefund(store, order)) throw new Error("已退款订单不能再次关闭");
+      if (order.paymentStatus === "unpaid" || order.status === "unpaid") {
+        order.status = "cancelled";
+        order.cancelledAt = now();
+        order.updatedAt = now();
+        order.statusHistory = [
+          ...(order.statusHistory ?? []),
+          makeStatusHistory("cancelled", "管理员关闭未支付订单", "admin"),
+        ];
+        ensureAdminChatMessage(store, order, "管理员已关闭未支付订单。");
+        addAdminLog(store, "order_close", "order", order.id, `关闭未支付订单：${order.orderNo}`);
+        return order;
+      }
+      if (!["paid", "pending", "accepted", "worker_completed", "disputed", "after_sale"].includes(order.status)) throw new Error("当前订单不能关闭");
+      closePaidUnsettledOrder(store, order);
+      addAdminLog(store, "order_close_refund", "order", order.id, `关闭订单并返还余额：${order.orderNo}`, { operationAmount: order.amountLockeCoin });
+      return order;
+    }
+
+    if (status === "pending") {
+      if (order.status !== "cancelled") throw new Error("只有已关闭订单可以恢复");
+      if (hasOrderRefund(store, order) || order.paymentStatus === "refunded") throw new Error("已退款关闭的订单不能恢复，请重新下单");
+      order.status = order.paymentStatus === "unpaid" ? "unpaid" : "pending";
+      order.cancelledAt = undefined;
+      order.updatedAt = now();
+      order.statusHistory = [
+        ...(order.statusHistory ?? []),
+        makeStatusHistory(order.status, "管理员恢复订单", "admin", order.paymentStatus === "unpaid" ? "订单仍为未支付状态" : "订单恢复为待接单"),
+      ];
+      ensureAdminChatMessage(store, order, order.status === "unpaid" ? "管理员已恢复订单，当前仍待支付。" : "管理员已恢复订单，等待接单员接单。");
+      addAdminLog(store, "order_restore", "order", order.id, `恢复订单：${order.orderNo}`);
+      return order;
+    }
+
+    if (status === "disputed") {
+      if (order.status === "cancelled" || order.status === "refunded" || order.status === "after_sale_refunded") throw new Error("已关闭或已退款订单不能标记疑问");
+      order.status = "disputed";
+      order.complaintFlag = true;
+      order.updatedAt = now();
+      order.statusHistory = [
+        ...(order.statusHistory ?? []),
+        makeStatusHistory("disputed", "管理员标记订单疑问", "admin", "仅标记疑问，不改变钱包或支付状态"),
+      ];
+      ensureAdminChatMessage(store, order, "管理员已标记订单疑问，将跟进订单沟通。");
+      addAdminLog(store, "order_mark_issue", "order", order.id, `标记订单疑问：${order.orderNo}`);
+      return order;
+    }
+
+    if (order.status === "refunded" || order.status === "after_sale_refunded" || hasOrderRefund(store, order)) throw new Error("已退款订单不能直接改状态");
+    if (order.status === "settled" || order.settledAt) throw new Error("已完成订单不能直接改状态，请走售后或退款流程");
     order.status = status;
     order.updatedAt = now();
     order.statusHistory = [
@@ -4333,10 +4542,11 @@ export function buildPaymentRecords(inputStore?: StoreShape): PaymentRecord[] {
 
   store.orders.forEach((order) => {
     const refunded = order.status === "refunded" || order.status === "after_sale_refunded" || order.paymentStatus === "refunded";
+    const partialRefunded = order.refundStatus === "partial_refunded";
     const pending = order.status === "unpaid" || order.paymentStatus === "unpaid";
     const failed = order.status === "failed";
     const closed = order.status === "cancelled";
-    const status: PaymentRecordStatus = refunded ? "refunded" : failed ? "failed" : closed ? "closed" : pending ? "pending" : "success";
+    const status: PaymentRecordStatus = partialRefunded ? "partial_refunded" : refunded ? "refunded" : failed ? "failed" : closed ? "closed" : pending ? "pending" : "success";
     const channel = normalizePaymentChannel(order.paymentMethod);
     records.push({
       id: `payment-order-${order.id}`,
@@ -4356,8 +4566,8 @@ export function buildPaymentRecords(inputStore?: StoreShape): PaymentRecord[] {
       channelTradeNo: status === "success" ? `${channel.toUpperCase()}_${order.orderNo}` : undefined,
       createdAt: order.createdAt,
       paidAt: order.paidAt,
-      refundedAt: refunded ? order.updatedAt : undefined,
-      remark: order.remark,
+      refundedAt: refunded || partialRefunded ? order.refundedAt ?? order.updatedAt : undefined,
+      remark: order.refundStatus && order.refundStatus !== "none" ? `已退款 ${formatRock(order.refundAmount ?? order.amountLockeCoin)} 洛克贝` : order.remark,
     });
   });
 
@@ -4384,7 +4594,10 @@ export function buildPaymentRecords(inputStore?: StoreShape): PaymentRecord[] {
   });
 
   store.wallet_ledger
-    .filter((entry) => ["deposit_paid", "deposit_admin_add", "deposit_admin_deduct", "deposit_refund", "admin_adjust", "refund", "order_refund"].includes(entry.type))
+    .filter((entry) =>
+      ["deposit_paid", "deposit_admin_add", "deposit_admin_deduct", "deposit_refund", "admin_adjust"].includes(entry.type) ||
+      ((entry.type === "refund" || entry.type === "order_refund") && entry.direction === "in"),
+    )
     .forEach((entry) => {
       const worker = store.workers.find((item) => item.id === entry.userId);
       const user = store.users.find((item) => item.id === entry.userId);

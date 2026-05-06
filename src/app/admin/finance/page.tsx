@@ -18,10 +18,11 @@ export default function AdminFinancePage() {
     const settled = store.orders.filter((order) => order.status === "settled");
     const rechargeTotal = store.recharge_orders.filter((item) => item.status === "paid").reduce((sum, item) => sum + item.amountRmb, 0);
     const tipTotal = store.orders.filter((order) => order.orderType === "tip" && order.status === "settled").reduce((sum, order) => sum + order.amountRmb, 0);
-    const refundTotal = store.wallet_ledger.filter((entry) => entry.type === "refund").reduce((sum, entry) => sum + entry.amount, 0);
+    const refundTotal = store.wallet_ledger.filter((entry) => (entry.type === "refund" || entry.type === "order_refund") && entry.direction === "in").reduce((sum, entry) => sum + entry.amount, 0);
     const withdrawPending = store.withdraw_requests.filter((item) => item.status === "pending" || item.status === "approved").reduce((sum, item) => sum + item.amountLockeCoin, 0);
-    const workerSettled = store.wallet_ledger.filter((entry) => entry.type === "order_settle" && entry.direction === "in").reduce((sum, entry) => sum + entry.amount, 0);
+    const workerSettled = store.wallet_ledger.filter((entry) => entry.type === "order_income" && entry.direction === "in").reduce((sum, entry) => sum + entry.amount, 0);
     const frozen = store.wallet_accounts.reduce((sum, wallet) => sum + wallet.frozenBalance, 0);
+    const unsettledStatuses = new Set(["pending", "accepted", "worker_completed", "disputed", "after_sale"]);
     return [
       ["总 GMV", settled.reduce((sum, order) => sum + order.amountRmb, 0)],
       ["今日 GMV", settled.filter((order) => order.createdAt.slice(0, 10) === today).reduce((sum, order) => sum + order.amountRmb, 0)],
@@ -32,7 +33,7 @@ export default function AdminFinancePage() {
       ["待提现金额", withdrawPending],
       ["平台留存金额", money(rechargeTotal - workerSettled - refundTotal)],
       ["已结算给接单员", workerSettled],
-      ["未结算金额", frozen + serviceOrders.filter((order) => order.status !== "settled").reduce((sum, order) => sum + order.amountRmb, 0)],
+      ["未结算金额", frozen + serviceOrders.filter((order) => unsettledStatuses.has(order.status)).reduce((sum, order) => sum + order.amountRmb, 0)],
     ];
   }, [store]);
 

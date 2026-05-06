@@ -319,7 +319,7 @@ function isEffective(order: OrderCompat) {
 }
 
 function isGmvOrder(order: OrderCompat) {
-  return isEffective(order) && !noGmvStatuses.has(String(order.status));
+  return order.status === "settled" || String(order.status) === "completed";
 }
 
 function isCompleted(order: OrderCompat) {

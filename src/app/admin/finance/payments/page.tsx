@@ -31,7 +31,7 @@ export default function FinancePaymentsPage() {
   const today = new Date().toISOString().slice(0, 10);
   const month = new Date().toISOString().slice(0, 7);
   const todayReceived = records.filter((item) => item.status === "success" && item.paidAt?.slice(0, 10) === today).reduce((sum, item) => sum + item.amountRmb, 0);
-  const todayRefund = records.filter((item) => (item.status === "refunded" || item.status === "partial_refunded") && (item.refundedAt ?? item.createdAt).slice(0, 10) === today).reduce((sum, item) => sum + item.amountRmb, 0);
+  const todayRefund = records.filter((item) => item.type === "refund" && (item.status === "refunded" || item.status === "partial_refunded") && (item.refundedAt ?? item.createdAt).slice(0, 10) === today).reduce((sum, item) => sum + item.amountRmb, 0);
   const pendingAmount = records.filter((item) => item.status === "pending").reduce((sum, item) => sum + item.amountRmb, 0);
   const monthReceived = records.filter((item) => item.status === "success" && item.paidAt?.slice(0, 7) === month).reduce((sum, item) => sum + item.amountRmb, 0);
 

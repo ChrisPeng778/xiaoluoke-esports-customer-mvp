@@ -22,7 +22,7 @@ const tabs: Array<{ label: string; value: string }> = [
   { label: "打赏订单", value: "tip" },
 ];
 
-const validAovStatuses = new Set(["paid", "pending", "accepted", "worker_completed", "settled"]);
+const validAovStatuses = new Set(["settled"]);
 
 export default function AdminOrdersPage() {
   const [store, setStore] = useState<StoreShape>(() => readStore());

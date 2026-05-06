@@ -6,7 +6,7 @@
 | 模块 | 状态 | 当前确认 | 不确定 / 待补齐 |
 |---|---|---|---|
 | 项目基础结构 | 已完成 | Next.js App Router、React、Tailwind 项目结构存在，三端路由均在 `src/app` 下；本轮 `npm run build` 已通过并生成 78 个页面/API 路由。 | 需要持续确认后续修改后的 build 状态。 |
-| shared store / localStorage | 部分完成 | `src/lib/store.ts` 和 `src/lib/types.ts` 已包含主 store、session、三端大量业务函数；`system_settings` 已并入 `xiaoluoke_customer_mvp_store`；会员等级配置已新增 `member_level_settings` 并并入主 store；投诉 / 反馈 / 售后 / 评价闭环已新增并统一 `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews`。订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`，接单员已增加 `ratingAvg`、`reviewCount`。`xiaoluoke_admin_member_level_settings` 不再作为主要数据源，只作为旧数据迁移来源。 | 下一轮建议做三端整体联动检查，继续确认是否还有散落占位或统计口径不一致。 |
+| shared store / localStorage | 部分完成 | `src/lib/store.ts` 和 `src/lib/types.ts` 已包含主 store、session、三端大量业务函数；`system_settings` 已并入 `xiaoluoke_customer_mvp_store`；会员等级配置已新增 `member_level_settings` 并并入主 store；投诉 / 反馈 / 售后 / 评价闭环已新增并统一 `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews`。订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`，并已新增/迁移 `refundAmount`、`refundStatus`、`refundedAt`、`cancelledAt`、`refundRemark`。接单员已增加 `ratingAvg`、`reviewCount`。`xiaoluoke_admin_member_level_settings` 不再作为主要数据源，只作为旧数据迁移来源。 | 下一轮建议做小问题清理与上线前检查，继续确认是否还有散落占位或统计口径不一致。 |
 | 顾客端首页/分类/商品 | 部分完成 | `/customer/home`、`/customer/categories`、`/customer/product/[id]` 存在。商品、分类、图片逻辑曾多次调整。 | 商品分类顺序、商品清单、下架分类联动需人工确认。 |
 | 顾客端下单/订单/详情 | 部分完成 | `/customer/order-confirm/[productId]`、`/customer/orders`、`/customer/order/[id]` 存在，store 有下单、结单、疑问逻辑；`/customer/order/[id]` 已接入反馈、投诉、售后、评价和处理进度。 | 仍建议做三端整体联动浏览器验证。 |
 | 顾客端充值 | 已完成 | `/customer/recharge` 存在，store 有 `validateRechargeAmount`、`rechargeCurrentCustomer`。 | 充值套餐是否已接入顾客端，需确认。 |
@@ -20,8 +20,8 @@
 | 接单员端钱包/提现 | 部分完成 | `/worker/wallet` 存在，withdraw_requests 类型和管理函数存在；已读取 `system_settings.finance` 的最低提现金额、手续费、留存金额、提现方式。 | 当前只创建提现申请并预留接口，不接真实打款或小程序提现。 |
 | 管理端登录 | 部分完成 | `/admin/login` 存在，store 有 adminLogin/adminLogout/session。 | 权限路由拦截是否覆盖所有管理端页面需确认。 |
 | 管理端布局 | 部分完成 | `src/components/admin/AdminLayout.tsx` 存在。 | 左侧菜单是否完全移除无关“分销/应用/装修”需持续确认。 |
-| 管理端统计面板 | 部分完成 | `/admin/dashboard`、`/admin/order-statistics` 存在；综合面板已读取经营目标设置展示进度。 | KPI、图表、风险告警、智能洞察是否全按真实数据实现需确认。 |
-| 管理端订单管理 | 部分完成 | `/admin/orders`、`/admin/order/[id]`、`/admin/orders/create` 存在；store 有 adminCreateOrder/adminSettleOrder/adminRefundOrder。 | 筛选、详情进度条、聊天记录、费用明细是否完整需确认。 |
+| 管理端统计面板 | 部分完成 | `/admin/dashboard`、`/admin/order-statistics` 存在；综合面板已读取经营目标设置展示进度；Dashboard、订单统计、商品 GMV、订单 AOV、财务退款/未结算/支付退款统计口径已收紧，不再明显把已关闭/已退款订单算入成交。 | KPI、图表、风险告警、智能洞察是否全按真实数据实现需确认。 |
+| 管理端订单管理 | 已完成 / 待体验验证 | `/admin/orders`、`/admin/order/[id]`、`/admin/orders/create` 存在；store 有 adminCreateOrder/adminSettleOrder/adminRefundOrder。管理端退款、关闭、恢复、标记疑问已加入状态限制；已支付未完成订单关闭时会释放冻结余额、返还顾客本地余额、写 `order_refund` 流水、更新退款字段、写聊天系统消息和 `admin_logs`；未支付订单关闭不产生退款流水；退款会更新顾客余额、冻结、钱包流水；已结算订单退款会扣减顾客累计消费，并写接单员佣金/平台抽成反向流水或异常说明；恢复订单只允许未退款的已关闭订单恢复；标记疑问不触碰财务。 | 真实微信/支付宝退款仍是占位；支付记录仍由订单、充值、钱包流水派生，未新增 `payment_records` 持久化数组；仍建议浏览器体验验证。 |
 | 管理端用户管理 | 部分完成 | `/admin/users`、`/admin/user/[id]`、`/admin/users/member-levels` 存在；会员等级页面已读取和保存 `StoreShape.member_level_settings`，保存后会写入 `admin_logs`、触发 `xiaoluoke_store_updated`，并影响顾客端等级展示和下单折扣。`calculateMemberLevel` / `nextLevelGap` 已读取统一会员等级规则。本轮 `npm run build` 已通过。 | 用户详情/列表仍需后续浏览器体验验证。 |
 | 管理端商品管理 | 部分完成 | `/admin/products`、`/admin/product/[id]`、`/admin/product/create`、`/admin/product-categories` 存在，store 有商品 CRUD 和分类 CRUD。 | 商品新增/编辑/分类弹窗/推荐排序/销售数据是否完全完成需确认。 |
 | 管理端接单员管理 | 部分完成 | `/admin/workers`、`/admin/worker/[id]` 存在，store 有资料、冻结、保证金、余额、抽成函数。 | Drawer 五个 Tab、退保/提现记录、统一抽成 UI 需人工确认。 |
@@ -29,7 +29,7 @@
 | 管理端公告管理 | 部分完成 | `/admin/announcements` 存在，store 有公告 CRUD、可见范围、已读和 viewCount。 | 顾客端/接单员端公告弹窗和已读逻辑需人工确认。 |
 | 管理端权限模块 | 已完成 / 待体验验证 | `/admin/permissions/roles`、`admin-users`、`menus` 存在，types/store 有 roles/users/menus/session/permission。管理端权限与危险操作一致性已完成：危险操作权限已补齐，UI 层已对无权限按钮隐藏或 disabled，执行层已加 `requirePermission` / `requireAnyPermission`。已覆盖订单、用户、接单员、商品、分类、财务、提现、反馈、投诉、售后、评价、角色、管理员等危险操作。新增或补齐权限点包括 `orders.restore`、`orders.mark_issue`、`orders.update_status`、`orders.delete`、`users.export`、`workers.export`、`finance.wallet.adjust`、`feedback.reviews.hide`、`feedback.reviews.restore`、`permissions.roles.create/edit/delete`、`permissions.admin_users.create/edit/delete` 等。 | `orders.delete` 只补权限点，未新增删除订单业务函数；导出仍是 MVP 占位；`/admin/permissions/menus` 仍按 `permissions.menus.manage` 控制，未拆更细权限。 |
 | 管理端设置模块 | 已完成 / 待体验验证 | `/admin/settings/basic` 到 `/admin/settings/resources` 已新增或完善，统一写入 `StoreShape.system_settings`，保存设置写 `admin_logs`。 | 企业微信客服、公众号 H5、微信支付、提现、短信、资源上传仅预留接口和字段，不接真实服务。 |
-| 投诉 / 反馈 / 售后 / 评价 | 已完成 / 待体验验证 | `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入 `xiaoluoke_customer_mvp_store`；订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作已写入 `admin_logs`，所有新增和处理动作已触发 `xiaoluoke_store_updated`。 | 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位。 |
+| 投诉 / 反馈 / 售后 / 评价 | 已完成 / 待体验验证 | `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入 `xiaoluoke_customer_mvp_store`；订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；`complaintFlag` / `aftersaleFlag` 已根据活跃记录计算，不再简单永远 true；售后 `resolved` 会做本地模拟退款并同步 `after_sale_refunded`。接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作已写入 `admin_logs`，所有新增和处理动作已触发 `xiaoluoke_store_updated`。 | 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位。 |
 | API 结构 | 部分完成 | `src/app/api` 下有 auth/customer API 占位，并新增企业微信客服、微信支付回调、接单员提现占位入口。 | 当前仍以 localStorage 为主，API 未接数据库，且不接真实第三方服务。 |
 | 部署文档/部署准备 | 部分完成 | 之前曾准备 Vercel/香港服务器部署说明。 | 当前请求未扫描 README 等部署文档，需后续单独确认。 |
 | 文案规范 | 需要持续检查 | 本次 `rg` 未在 `src` 中发现“打手”关键词。 | 后续新增后台菜单时仍需禁止无关模块和“打手”文案。 |
@@ -40,5 +40,6 @@
 2. 会员等级配置并入 shared store 已完成。
 3. 投诉 / 反馈 / 售后 / 评价闭环已完成。
 4. 管理端权限与危险操作一致性已完成。
-5. 最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
-6. 下一轮建议修“订单关闭/恢复/退款与钱包冻结、支付状态、售后投诉标记一致性”，不要直接开发新大功能。
+5. 订单/钱包/退款/状态一致性已完成。
+6. 最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
+7. 下一轮建议做“小问题清理与上线前检查”，包括 `/customer/must-read` 同步设置、旧提现页面文案统一、接单员钱包流水正负号显示、全站“打手”文案检查。

@@ -64,6 +64,12 @@ export default function AdminOrderDetailPage() {
   const canMarkIssue = hasPermission("orders.mark_issue");
   const canClose = hasPermission("orders.close");
   const canRestore = hasPermission("orders.restore");
+  const refunded = order.paymentStatus === "refunded" || order.refundStatus === "refunded" || order.refundStatus === "partial_refunded" || order.status === "refunded" || order.status === "after_sale_refunded";
+  const canRunSettle = canSettle && ["worker_completed", "disputed"].includes(order.status) && !order.settledAt && !refunded;
+  const canRunRefund = canRefund && order.orderType === "service" && ["pending", "accepted", "worker_completed", "disputed", "after_sale", "settled"].includes(order.status) && order.paymentStatus !== "unpaid" && !refunded;
+  const canRunMarkIssue = canMarkIssue && !["cancelled", "refunded", "after_sale_refunded"].includes(order.status);
+  const canRunClose = canClose && order.orderType === "service" && !order.settledAt && !refunded && !["cancelled", "settled", "refunded", "after_sale_refunded"].includes(order.status);
+  const canRunRestore = canRestore && order.status === "cancelled" && order.paymentStatus !== "refunded" && !refunded;
 
   return (
     <AdminLayout title="订单详情">
@@ -179,6 +185,8 @@ export default function AdminOrderDetailPage() {
             <div className="mt-4 space-y-3">
               <Info label="订单总额" value={formatCurrency(order.amountRmb)} />
               <Info label="实收金额" value={formatCurrency(order.amountRmb)} />
+              <Info label="支付状态" value={paymentStatusText(order.paymentStatus)} />
+              <Info label="退款金额" value={`${formatRock(order.refundAmount ?? 0)} 洛克贝`} />
               <Info label="平台抽成比例" value={`${settlement.commissionRate}%`} />
               <Info label="接单员收益" value={`${formatRock(workerIncome)} 洛克贝`} />
               <Info label="平台毛利" value={formatCurrency(platformMargin)} />
@@ -200,11 +208,11 @@ export default function AdminOrderDetailPage() {
           <AdminCard className="p-5">
             <h3 className="text-lg font-black">管理操作</h3>
             <div className="mt-4 grid gap-3">
-              {canSettle ? <button className="h-11 rounded-xl bg-blue-600 text-sm font-black text-white" onClick={() => confirmRun("确定由管理员结单该订单吗？", () => adminSettleOrder(order.id), "管理员结单成功")}>管理员结单</button> : null}
-              {canRefund ? <button className="h-11 rounded-xl bg-rose-600 text-sm font-black text-white" onClick={() => confirmRun("确定退款给顾客吗？当前为 MVP 模拟退款。", () => adminRefundOrder(order.id), "退款成功")}>退款给顾客</button> : null}
-              {canMarkIssue ? <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => run(() => adminUpdateOrderStatus(order.id, "disputed"), "已标记有疑问")}>标记有疑问</button> : null}
-              {canClose ? <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => confirmRun("确定关闭该订单吗？本轮不处理冻结资金释放。", () => adminUpdateOrderStatus(order.id, "cancelled"), "已关闭订单")}>关闭订单</button> : null}
-              {canRestore ? <button className="h-11 rounded-xl border border-slate-200 text-sm font-black" onClick={() => confirmRun("确定恢复该订单为待接单吗？", () => adminUpdateOrderStatus(order.id, "pending"), "已恢复为待接单")}>恢复订单</button> : null}
+              {canSettle ? <button disabled={!canRunSettle} title={canRunSettle ? undefined : "当前状态不能结单"} className={`h-11 rounded-xl text-sm font-black ${canRunSettle ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400"}`} onClick={() => confirmRun("确定由管理员结单该订单吗？", () => adminSettleOrder(order.id), "管理员结单成功")}>管理员结单</button> : null}
+              {canRefund ? <button disabled={!canRunRefund} title={canRunRefund ? undefined : "当前状态不能退款或已退款"} className={`h-11 rounded-xl text-sm font-black ${canRunRefund ? "bg-rose-600 text-white" : "bg-slate-100 text-slate-400"}`} onClick={() => confirmRun("确定退款给顾客吗？当前为 MVP 本地模拟退款，会同步余额、冻结和流水。", () => adminRefundOrder(order.id), "退款成功")}>退款给顾客</button> : null}
+              {canMarkIssue ? <button disabled={!canRunMarkIssue} title={canRunMarkIssue ? undefined : "已关闭或已退款订单不能标记疑问"} className={`h-11 rounded-xl border text-sm font-black ${canRunMarkIssue ? "border-slate-200" : "border-slate-100 bg-slate-100 text-slate-400"}`} onClick={() => run(() => adminUpdateOrderStatus(order.id, "disputed"), "已标记有疑问")}>标记有疑问</button> : null}
+              {canClose ? <button disabled={!canRunClose} title={canRunClose ? undefined : "已完成、已退款或已关闭订单不能直接关闭"} className={`h-11 rounded-xl border text-sm font-black ${canRunClose ? "border-slate-200" : "border-slate-100 bg-slate-100 text-slate-400"}`} onClick={() => confirmRun("确定关闭该订单吗？已支付未完成订单会返还本地余额并写入流水。", () => adminUpdateOrderStatus(order.id, "cancelled"), "已关闭订单")}>关闭订单</button> : null}
+              {canRestore ? <button disabled={!canRunRestore} title={canRunRestore ? undefined : "只有未退款的已关闭订单可以恢复"} className={`h-11 rounded-xl border text-sm font-black ${canRunRestore ? "border-slate-200" : "border-slate-100 bg-slate-100 text-slate-400"}`} onClick={() => confirmRun("确定恢复该订单吗？已退款关闭的订单不能恢复。", () => adminUpdateOrderStatus(order.id, "pending"), "已恢复订单")}>恢复订单</button> : null}
               {!canSettle && !canRefund && !canMarkIssue && !canClose && !canRestore ? <p className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-bold text-slate-400" title="无权限操作">无权限操作</p> : null}
             </div>
           </AdminCard>
@@ -246,6 +254,12 @@ function servicePortText(port?: string) {
   if (port === "pc") return "PC端";
   if (port === "both") return "双端";
   return "手游";
+}
+
+function paymentStatusText(status?: string) {
+  if (status === "refunded") return "已退款";
+  if (status === "unpaid") return "未支付";
+  return "已支付";
 }
 
 function Info({ label, value }: { label: string; value: string }) {

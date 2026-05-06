@@ -262,6 +262,11 @@ export interface Order {
   startedAt?: string;
   submittedAt?: string;
   settledAt?: string;
+  cancelledAt?: string;
+  refundedAt?: string;
+  refundAmount?: number;
+  refundStatus?: "none" | "pending" | "partial_refunded" | "refunded" | "failed";
+  refundRemark?: string;
   statusHistory?: OrderStatusHistory[];
   customerRating?: number;
   ratedAt?: string;

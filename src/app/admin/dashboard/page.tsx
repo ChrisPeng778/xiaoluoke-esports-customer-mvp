@@ -8,8 +8,8 @@ import { formatCurrency, money, readStore } from "@/lib/store";
 import type { Order, StoreShape } from "@/lib/types";
 
 const rangeTabs = ["今日", "昨日", "近7天", "近30天", "本月", "上月", "自定义"];
-const validRevenueStatuses = new Set(["paid", "pending", "accepted", "worker_completed", "settled"]);
-const paidStatuses = new Set(["paid", "pending", "accepted", "worker_completed", "settled", "disputed", "refunded", "after_sale", "after_sale_refunded"]);
+const validRevenueStatuses = new Set(["settled"]);
+const paidStatuses = new Set(["paid", "pending", "accepted", "worker_completed", "settled", "disputed", "after_sale", "refunded", "after_sale_refunded"]);
 
 export default function AdminDashboardPage() {
   const [store, setStore] = useState<StoreShape>(() => readStore());
@@ -219,15 +219,16 @@ function buildChartRows(orders: Order[], metric: "订单数" | "GMV" | "客单�
     date.setDate(date.getDate() - (13 - index));
     const key = date.toISOString().slice(0, 10);
     const dayOrders = orders.filter((order) => order.createdAt.slice(0, 10) === key);
+    const revenueOrders = dayOrders.filter((order) => validRevenueStatuses.has(order.status) || order.orderType === "tip");
     const settled = dayOrders.filter((order) => order.status === "settled");
-    const gmv = dayOrders.reduce((sum, order) => sum + order.amountRmb, 0);
+    const gmv = revenueOrders.reduce((sum, order) => sum + order.amountRmb, 0);
     const value =
       metric === "订单数"
         ? dayOrders.length
         : metric === "GMV"
           ? gmv
           : metric === "客单价"
-            ? dayOrders.length ? gmv / dayOrders.length : 0
+            ? revenueOrders.length ? gmv / revenueOrders.length : 0
             : dayOrders.length ? (settled.length / dayOrders.length) * 100 : 0;
     return { label: key.slice(5), value: money(value) };
   });
