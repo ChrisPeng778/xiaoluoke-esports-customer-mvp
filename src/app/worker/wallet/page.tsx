@@ -6,7 +6,23 @@ import { WorkerBottomNav } from "@/components/WorkerBottomNav";
 import { WorkerHeader } from "@/components/WorkerHeader";
 import { useWorkerSession } from "@/lib/hooks";
 import { createWithdrawRequestAsCurrentWorker, formatRock, readStore } from "@/lib/store";
+import type { LedgerType, WalletLedger } from "@/lib/types";
 import { useState } from "react";
+
+const negativeLedgerTypes: LedgerType[] = [
+  "order_pay",
+  "order_freeze",
+  "order_refund",
+  "refund",
+  "tip_out",
+  "withdraw_request",
+  "withdraw_freeze",
+  "withdraw_done",
+  "deposit_paid",
+  "deposit_deduct",
+  "deposit_admin_deduct",
+  "platform_commission",
+];
 
 export default function WorkerWalletPage() {
   const { session, ready, refresh } = useWorkerSession();
@@ -76,15 +92,18 @@ export default function WorkerWalletPage() {
           <h2 className="text-lg font-black text-slate-900">收益流水</h2>
           <div className="mt-3 space-y-3">
             {ledgers.length ? (
-              ledgers.map((entry) => (
-                <div key={entry.id} className="flex items-center justify-between border-b border-stone-100 pb-3 last:border-none last:pb-0">
-                  <div>
-                    <p className="text-sm font-black text-slate-900">{entry.description}</p>
-                    <p className="mt-1 text-xs font-bold text-stone-400">{new Date(entry.createdAt).toLocaleString("zh-CN")}</p>
+              ledgers.map((entry) => {
+                const income = isIncomeLedger(entry);
+                return (
+                  <div key={entry.id} className="flex items-center justify-between border-b border-stone-100 pb-3 last:border-none last:pb-0">
+                    <div>
+                      <p className="text-sm font-black text-slate-900">{entry.description}</p>
+                      <p className="mt-1 text-xs font-bold text-stone-400">{new Date(entry.createdAt).toLocaleString("zh-CN")}</p>
+                    </div>
+                    <p className={`text-sm font-black ${income ? "text-emerald-600" : "text-orange-500"}`}>{income ? "+" : "-"}{formatRock(entry.amount)}</p>
                   </div>
-                  <p className="text-sm font-black text-orange-500">+{formatRock(entry.amount)}</p>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-sm font-bold text-stone-500">暂无收益流水。</p>
             )}
@@ -95,6 +114,12 @@ export default function WorkerWalletPage() {
       <WorkerBottomNav />
     </main>
   );
+}
+
+function isIncomeLedger(entry: WalletLedger) {
+  if (entry.direction === "out") return false;
+  if (entry.direction === "in" && !negativeLedgerTypes.includes(entry.type)) return true;
+  return !negativeLedgerTypes.includes(entry.type);
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
