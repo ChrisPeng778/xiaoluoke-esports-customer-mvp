@@ -4,9 +4,11 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminBadge, AdminCard, AdminLayout } from "@/components/admin/AdminLayout";
 import { useStoreSync } from "@/lib/hooks";
-import { adminSetUserFrozen, adminUpdateUserRemark, formatRock, formatTime, hasPermission, readStore } from "@/lib/store";
+import { adminAdjustUserBalance, adminAdjustUserTotalSpent, adminSetUserFrozen, adminUpdateUserRemark, formatRock, formatTime, hasAnyPermission, hasPermission, money, readStore } from "@/lib/store";
 import { statusText } from "@/lib/status";
 import type { StoreShape, User } from "@/lib/types";
+
+type AdjustmentMode = "increase" | "decrease" | "set";
 
 export default function AdminUsersPage() {
   const [store, setStore] = useState<StoreShape>(() => readStore());
@@ -169,6 +171,7 @@ export default function AdminUsersPage() {
           message={message}
           saveRemark={saveRemark}
           canEdit={canEditUser}
+          onChanged={refresh}
           onClose={() => setSelectedId(null)}
         />
       ) : null}
@@ -176,7 +179,7 @@ export default function AdminUsersPage() {
   );
 }
 
-function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, saveRemark, canEdit, onClose }: {
+function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, saveRemark, canEdit, onChanged, onClose }: {
   user: User;
   store: StoreShape;
   tab: "overview" | "orders" | "ledger";
@@ -186,12 +189,63 @@ function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, save
   message: string;
   saveRemark: () => void;
   canEdit: boolean;
+  onChanged: () => void;
   onClose: () => void;
 }) {
   const wallet = store.wallet_accounts.find((item) => item.userId === user.id);
   const orders = store.orders.filter((order) => order.customerId === user.id || order.userId === user.id);
   const ledger = store.wallet_ledger.filter((entry) => entry.userId === user.id);
   const registeredDays = Math.max(0, Math.ceil((Date.now() - new Date(user.createdAt).getTime()) / 86400000));
+  const canAdjustBalance = hasAnyPermission(["users.adjust_balance", "finance.wallet.adjust"]);
+  const canAdjustConsumption = hasPermission("users.edit");
+  const [balanceDialogOpen, setBalanceDialogOpen] = useState(false);
+  const [balanceMode, setBalanceMode] = useState<AdjustmentMode>("increase");
+  const [balanceAmount, setBalanceAmount] = useState("");
+  const [balanceRemark, setBalanceRemark] = useState("");
+  const [consumptionDialogOpen, setConsumptionDialogOpen] = useState(false);
+  const [consumptionMode, setConsumptionMode] = useState<AdjustmentMode>("increase");
+  const [consumptionAmount, setConsumptionAmount] = useState("");
+  const [consumptionRemark, setConsumptionRemark] = useState("");
+  const [adjustMessage, setAdjustMessage] = useState("");
+
+  const normalizeAmount = (raw: string) => {
+    const value = raw.trim();
+    if (!value) throw new Error("请填写金额");
+    if (!/^\d+(\.\d{1,2})?$/.test(value)) throw new Error("请输入合法金额，最多 2 位小数");
+    return money(Number(value));
+  };
+
+  const adjustBalance = () => {
+    setAdjustMessage("");
+    try {
+      const amount = normalizeAmount(balanceAmount);
+      adminAdjustUserBalance({ userId: user.id, mode: balanceMode, amount, remark: balanceRemark });
+      setBalanceMode("increase");
+      setBalanceAmount("");
+      setBalanceRemark("");
+      setBalanceDialogOpen(false);
+      onChanged();
+      setAdjustMessage("用户余额调整成功");
+    } catch (error) {
+      setAdjustMessage(error instanceof Error ? error.message : "调整失败");
+    }
+  };
+
+  const adjustConsumption = () => {
+    setAdjustMessage("");
+    try {
+      const amount = normalizeAmount(consumptionAmount);
+      adminAdjustUserTotalSpent({ userId: user.id, mode: consumptionMode, amount, remark: consumptionRemark });
+      setConsumptionMode("increase");
+      setConsumptionAmount("");
+      setConsumptionRemark("");
+      setConsumptionDialogOpen(false);
+      onChanged();
+      setAdjustMessage("累计消费调整成功");
+    } catch (error) {
+      setAdjustMessage(error instanceof Error ? error.message : "调整失败");
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/35">
@@ -209,11 +263,24 @@ function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, save
         </div>
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
-          <Metric label="余额" value={`${formatRock(wallet?.availableBalance ?? 0)} 洛克贝`} />
-          <Metric label="累计消费" value={`${formatRock(wallet?.totalSpent ?? 0)} 洛克贝`} />
+          <Metric
+            label="余额"
+            value={`${formatRock(wallet?.availableBalance ?? 0)} 洛克贝`}
+            actionLabel="调整余额"
+            canAction={canAdjustBalance}
+            onAction={() => setBalanceDialogOpen(true)}
+          />
+          <Metric
+            label="累计消费"
+            value={`${formatRock(wallet?.totalSpent ?? 0)} 洛克贝`}
+            actionLabel="调整累计消费"
+            canAction={canAdjustConsumption}
+            onAction={() => setConsumptionDialogOpen(true)}
+          />
           <Metric label="会员等级" value={user.memberLevel} />
           <Metric label="注册至今" value={`${registeredDays} 天`} />
         </div>
+        {adjustMessage ? <p className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-sm font-black text-blue-600">{adjustMessage}</p> : null}
 
         <div className="mt-6 flex gap-6 border-b border-slate-100">
           {(["overview", "orders", "ledger"] as const).map((item) => (
@@ -261,6 +328,45 @@ function UserDrawer({ user, store, tab, setTab, remark, setRemark, message, save
           </div>
         )}
       </aside>
+      {balanceDialogOpen ? (
+        <AdjustDialog
+          title="调整用户余额"
+          amount={balanceAmount}
+          remark={balanceRemark}
+          mode={balanceMode}
+          remarkRequired
+          remarkPlaceholder="请输入调整原因，例如：人工补偿、测试充值、异常扣款修正"
+          modeOptions={[
+            ["increase", "增加余额"],
+            ["decrease", "扣减余额"],
+            ["set", "直接设置余额"],
+          ]}
+          onAmountChange={setBalanceAmount}
+          onRemarkChange={setBalanceRemark}
+          onModeChange={setBalanceMode}
+          onClose={() => setBalanceDialogOpen(false)}
+          onConfirm={adjustBalance}
+        />
+      ) : null}
+      {consumptionDialogOpen ? (
+        <AdjustDialog
+          title="调整累计消费"
+          amount={consumptionAmount}
+          remark={consumptionRemark}
+          mode={consumptionMode}
+          remarkPlaceholder="请输入备注"
+          modeOptions={[
+            ["increase", "增加累计消费"],
+            ["decrease", "扣减累计消费"],
+            ["set", "直接设置累计消费"],
+          ]}
+          onAmountChange={setConsumptionAmount}
+          onRemarkChange={setConsumptionRemark}
+          onModeChange={setConsumptionMode}
+          onClose={() => setConsumptionDialogOpen(false)}
+          onConfirm={adjustConsumption}
+        />
+      ) : null}
     </div>
   );
 }
@@ -270,10 +376,100 @@ function Avatar({ name, url, size = "md" }: { name: string; url?: string; size?:
   return url ? <img src={url} alt={name} className={`${cls} rounded-full object-cover`} /> : <div className={`${cls} grid place-items-center rounded-full bg-slate-100 text-xs font-black text-slate-500`}>用</div>;
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-xl bg-slate-50 p-4"><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-2 font-black text-slate-900">{value}</p></div>;
+function Metric({ label, value, actionLabel, canAction = true, onAction }: { label: string; value: string; actionLabel?: string; canAction?: boolean; onAction?: () => void }) {
+  return (
+    <div className="rounded-xl bg-slate-50 p-4">
+      <p className="text-xs font-bold text-slate-400">{label}</p>
+      <p className="mt-2 font-black text-slate-900">{value}</p>
+      {actionLabel ? (
+        <button
+          className={`mt-3 rounded-lg px-3 py-1.5 text-xs font-black ${canAction ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-400"}`}
+          disabled={!canAction}
+          title={canAction ? undefined : "无权限操作"}
+          onClick={onAction}
+        >
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function Info({ label, value }: { label: string; value: string }) {
   return <div><p className="text-xs font-bold text-slate-400">{label}</p><p className="mt-1 font-black text-slate-800">{value}</p></div>;
+}
+
+function AdjustDialog({
+  title,
+  mode,
+  amount,
+  remark,
+  remarkRequired = false,
+  remarkPlaceholder,
+  modeOptions,
+  onModeChange,
+  onAmountChange,
+  onRemarkChange,
+  onClose,
+  onConfirm,
+}: {
+  title: string;
+  mode: AdjustmentMode;
+  amount: string;
+  remark: string;
+  remarkRequired?: boolean;
+  remarkPlaceholder: string;
+  modeOptions: Array<[AdjustmentMode, string]>;
+  onModeChange: (mode: AdjustmentMode) => void;
+  onAmountChange: (amount: string) => void;
+  onRemarkChange: (remark: string) => void;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center bg-slate-900/30 px-4">
+      <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-black text-slate-900">{title}</h3>
+          <button className="rounded-xl border border-slate-200 px-3 py-1 text-sm font-black text-slate-500" onClick={onClose}>关闭</button>
+        </div>
+        <div className="mt-5 grid gap-4">
+          <label className="grid gap-2 text-sm font-black text-slate-700">
+            操作类型
+            <select className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-bold" value={mode} onChange={(event) => onModeChange(event.target.value as AdjustmentMode)}>
+              {modeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </label>
+          <label className="grid gap-2 text-sm font-black text-slate-700">
+            金额
+            <input
+              className="h-11 rounded-xl border border-slate-200 px-3 text-sm"
+              placeholder="0.00"
+              inputMode="decimal"
+              value={amount}
+              onChange={(event) => onAmountChange(event.target.value)}
+              onBlur={() => {
+                const value = amount.trim();
+                if (/^\d+(\.\d{1,2})?$/.test(value)) onAmountChange(money(Number(value)).toFixed(2));
+              }}
+            />
+          </label>
+          <label className="grid gap-2 text-sm font-black text-slate-700">
+            备注{remarkRequired ? "" : "（可选）"}
+            <textarea
+              className="min-h-24 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+              maxLength={200}
+              placeholder={remarkPlaceholder}
+              value={remark}
+              onChange={(event) => onRemarkChange(event.target.value)}
+            />
+          </label>
+        </div>
+        <div className="mt-5 flex justify-end gap-3">
+          <button className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-black text-slate-600" onClick={onClose}>取消</button>
+          <button className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white" onClick={onConfirm}>确认</button>
+        </div>
+      </div>
+    </div>
+  );
 }
