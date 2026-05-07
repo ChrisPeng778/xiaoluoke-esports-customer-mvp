@@ -22,7 +22,7 @@
 | 管理端布局 | 部分完成 | `src/components/admin/AdminLayout.tsx` 存在。 | 左侧菜单是否完全移除无关“分销/应用/装修”需持续确认。 |
 | 管理端统计面板 | 部分完成 | `/admin/dashboard`、`/admin/order-statistics` 存在；综合面板已读取经营目标设置展示进度；Dashboard、订单统计、商品 GMV、订单 AOV、财务退款/未结算/支付退款统计口径已收紧，不再明显把已关闭/已退款订单算入成交。 | KPI、图表、风险告警、智能洞察是否全按真实数据实现需确认。 |
 | 管理端订单管理 | 已完成 / 待体验验证 | `/admin/orders`、`/admin/order/[id]`、`/admin/orders/create` 存在；store 有 adminCreateOrder/adminSettleOrder/adminRefundOrder。管理端退款、关闭、恢复、标记疑问已加入状态限制；已支付未完成订单关闭时会释放冻结余额、返还顾客本地余额、写 `order_refund` 流水、更新退款字段、写聊天系统消息和 `admin_logs`；未支付订单关闭不产生退款流水；退款会更新顾客余额、冻结、钱包流水；已结算订单退款会扣减顾客累计消费，并写接单员佣金/平台抽成反向流水或异常说明；恢复订单只允许未退款的已关闭订单恢复；标记疑问不触碰财务。 | 真实微信/支付宝退款仍是占位；支付记录仍由订单、充值、钱包流水派生，未新增 `payment_records` 持久化数组；仍建议浏览器体验验证。 |
-| 管理端用户管理 | 部分完成 | `/admin/users`、`/admin/user/[id]`、`/admin/users/member-levels` 存在；会员等级页面已读取和保存 `StoreShape.member_level_settings`，保存后会写入 `admin_logs`、触发 `xiaoluoke_store_updated`，并影响顾客端等级展示和下单折扣。`calculateMemberLevel` / `nextLevelGap` 已读取统一会员等级规则。本轮 `npm run build` 已通过。 | 用户详情/列表仍需后续浏览器体验验证。 |
+| 管理端用户管理 | 部分完成 | `/admin/users`、`/admin/user/[id]`、`/admin/users/member-levels` 存在；会员等级页面已读取和保存 `StoreShape.member_level_settings`，保存后会写入 `admin_logs`、触发 `xiaoluoke_store_updated`，并影响顾客端等级展示和下单折扣。`calculateMemberLevel` / `nextLevelGap` 已读取统一会员等级规则。管理端用户详情页已支持调整用户余额和调整累计消费金额：余额调整支持增加、扣减、直接设置，备注必填且最多 200 字，金额校验到 2 位小数，不允许调整后余额小于 0，会同步 `users.availableBalance` 和 `wallet_accounts.availableBalance` 并写入 `wallet_ledger`；累计消费调整支持增加、扣减、直接设置，不允许调整后累计消费小于 0，不影响余额、不改订单、不改 GMV、不碰真实支付/退款，调整后按 `member_level_settings` 重新计算 `memberLevel`。余额调整权限使用 `users.adjust_balance` 或 `finance.wallet.adjust`，累计消费调整权限使用 `users.edit`。本轮修改文件为 `src/lib/store.ts`、`src/app/admin/user/[id]/page.tsx`，`npm run build` 已通过并生成 78/78 页面/API 路由。 | 用户详情/列表、顾客端个人中心余额和会员等级展示仍建议做浏览器体验验证。 |
 | 管理端商品管理 | 部分完成 | `/admin/products`、`/admin/product/[id]`、`/admin/product/create`、`/admin/product-categories` 存在，store 有商品 CRUD 和分类 CRUD。 | 商品新增/编辑/分类弹窗/推荐排序/销售数据是否完全完成需确认。 |
 | 管理端接单员管理 | 部分完成 | `/admin/workers`、`/admin/worker/[id]` 存在，store 有资料、冻结、保证金、余额、抽成函数。 | Drawer 五个 Tab、退保/提现记录、统一抽成 UI 需人工确认。 |
 | 管理端财务模块 | 部分完成 | `/admin/finance/payments`、`recharge-packages`、`tips`、`ledger`、`withdrawals` 存在，store 有充值套餐、提现、支付视图函数。 | 提现冻结余额、充值套餐同步顾客端、支付详情弹窗需确认。 |
@@ -44,4 +44,5 @@
 6. 小问题清理与上线前检查已完成：`/customer/must-read` 已读取 `system_settings.order.mustReadContent`；`/admin/withdrawals` 已统一跳转到 `/admin/finance/withdrawals`；接单员钱包流水正负号已修复；UI 文案“打手”已清理为“接单员”。
 7. 服务器测试网已更新到 GitHub 最新 `main`，部署 commit `d86a002 Clean up must-read withdrawals wallet ledger wording`；PM2 `xiaoluoke-web` online，三端公网和本机 curl 均 200 OK。
 8. 最近一次本地和服务器 `npm run build` 均已通过，生成 78 个页面/API 路由。
-9. 下一轮建议做小功能：管理端用户详情页增加/完善“调整用户余额”和“调整累计消费金额”；边界是不接真实支付/退款/MongoDB、不新增独立 localStorage key，数据仍进入 `xiaoluoke_customer_mvp_store`，不破坏订单、钱包、退款、会员等级、权限结构。
+9. 管理端用户详情页用户余额和累计消费调整已完成：支持增加、扣减、直接设置；余额调整写 `wallet_ledger` 并同步用户与钱包余额；累计消费调整不影响余额、不改订单/GMV/真实支付退款，按 `member_level_settings` 重算会员等级；本轮 `npm run build` 已通过，生成 78/78 页面/API 路由。
+10. 下一轮建议先做现有三端联动浏览器体验检查，不要继续开发真实支付、真实退款、MongoDB、短信、企业微信、COS/OSS 等外部服务。

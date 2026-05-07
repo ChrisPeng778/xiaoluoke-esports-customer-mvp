@@ -229,6 +229,8 @@
 
 本轮管理端权限与危险操作一致性已完成：管理端危险操作权限已补齐，UI 层已对无权限按钮隐藏或 disabled 并提示“无权限操作”，执行层已在危险操作函数内部加 `requirePermission` / `requireAnyPermission` 二次校验，避免绕过按钮直接写入 store。已覆盖订单、用户、接单员、商品、分类、财务、提现、反馈、投诉、售后、评价、角色、管理员等危险操作。新增或补齐权限点包括 `orders.restore`、`orders.mark_issue`、`orders.update_status`、`orders.delete`、`users.export`、`workers.export`、`finance.wallet.adjust`、`feedback.feedback.delete`、`feedback.reviews.hide`、`feedback.reviews.restore`、`permissions.roles.create`、`permissions.roles.edit`、`permissions.roles.delete`、`permissions.admin_users.create`、`permissions.admin_users.edit`、`permissions.admin_users.delete` 等。`orders.delete` 只补权限点，未新增删除订单业务函数；导出仍是 MVP 占位；`/admin/permissions/menus` 仍按 `permissions.menus.manage` 控制，未拆更细权限。
 
+本轮管理端用户详情页调整用户余额和调整累计消费金额已完成：修改文件为 `src/lib/store.ts`、`src/app/admin/user/[id]/page.tsx`。用户详情页已在余额卡片支持“调整余额”，在累计消费卡片支持“调整累计消费”。余额调整支持增加、扣减、直接设置，备注必填且最多 200 字，金额校验到 2 位小数，不允许调整后余额小于 0，会同步 `users.availableBalance` 和 `wallet_accounts.availableBalance`，并写入 `wallet_ledger`。累计消费调整支持增加、扣减、直接设置，金额校验到 2 位小数，备注可选且最多 200 字，不允许调整后累计消费小于 0；累计消费调整不影响余额、不改订单、不改 GMV、不碰真实支付/退款，调整后按 `member_level_settings` 重新计算 `memberLevel`。余额调整权限使用 `users.adjust_balance` 或 `finance.wallet.adjust`，累计消费调整权限使用 `users.edit`。本轮 `npm run build` 已通过，生成 78/78 页面/API 路由。
+
 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位，不接真实服务。最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
 
 ### 6.2 session / 状态 key
@@ -1022,7 +1024,7 @@
 4. 小问题清理与上线前检查已完成：`/customer/must-read` 已读取 `system_settings.order.mustReadContent`；`/admin/withdrawals` 已统一跳转到 `/admin/finance/withdrawals`；接单员钱包流水正负号已修复；UI 文案“打手”已清理为“接单员”。
 5. 不要顺手接真实退款到账、真实财务提现打款、真实支付、短信、企业微信、COS/OSS 或 MongoDB。
 6. 不要在小问题清理时重做设置、会员等级、投诉/反馈/售后/评价闭环、权限结构或订单状态机。
-7. 下一轮建议做一个小功能：管理端用户详情页增加/完善“调整用户余额”和“调整累计消费金额”。边界：不接真实支付、不接真实退款、不接 MongoDB、不新增独立 localStorage key，所有数据仍进入 `xiaoluoke_customer_mvp_store`，不破坏订单、钱包、退款、会员等级、权限结构，完成后必须跑 `npm run build`。
+7. 管理端用户详情页调整用户余额和调整累计消费金额已完成；下一轮建议先做现有三端联动浏览器体验检查，重点看用户列表、用户详情、顾客端个人中心余额、会员等级展示是否同步刷新。
 8. 改完任何模块必须跑 `npm run build`。
 
 ## 14. 本轮完成：订单/钱包/退款/状态一致性
@@ -1091,3 +1093,24 @@
 3. `http://127.0.0.1:3000/admin/login`：200 OK
 
 注意：当前测试网只是公网可访问；业务数据仍存在每台设备浏览器的 `localStorage`，不同设备不会真正共享订单、钱包、聊天等业务数据。
+
+## 17. 本轮完成：管理端用户余额和累计消费调整
+
+本轮只完善管理端用户详情页的余额和累计消费调整能力，没有新增独立 localStorage key，没有接入真实支付、真实退款、MongoDB、短信、企业微信或 COS/OSS。
+
+1. 管理端用户详情页已支持调整用户余额。
+2. 管理端用户详情页已支持调整累计消费金额。
+3. 余额调整支持增加、扣减、直接设置。
+4. 累计消费调整支持增加、扣减、直接设置。
+5. 余额调整备注必填，最多 200 字。
+6. 金额校验到 2 位小数。
+7. 不允许调整后余额小于 0。
+8. 不允许调整后累计消费小于 0。
+9. 余额调整会同步 `users.availableBalance` 和 `wallet_accounts.availableBalance`。
+10. 余额调整会写入 `wallet_ledger`。
+11. 累计消费调整不影响余额、不改订单、不改 GMV、不碰真实支付/退款。
+12. 累计消费调整后会按 `member_level_settings` 重新计算 `memberLevel`。
+13. 余额调整权限使用 `users.adjust_balance` 或 `finance.wallet.adjust`。
+14. 累计消费调整权限使用 `users.edit`。
+15. 修改文件：`src/lib/store.ts`、`src/app/admin/user/[id]/page.tsx`。
+16. 本轮 `npm run build` 已通过，生成 78/78 页面/API 路由。

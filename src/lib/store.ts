@@ -1423,6 +1423,26 @@ function ensureWorkerWallet(store: StoreShape, worker: Worker): WalletAccount {
   return wallet;
 }
 
+function ensureCustomerWallet(store: StoreShape, user: User): WalletAccount {
+  let wallet = store.wallet_accounts.find((item) => item.userId === user.id && item.ownerType === "customer")
+    ?? store.wallet_accounts.find((item) => item.userId === user.id);
+  if (!wallet) {
+    wallet = {
+      id: makeId("wallet"),
+      userId: user.id,
+      ownerType: "customer",
+      availableBalance: money(user.availableBalance),
+      frozenBalance: money(user.frozenBalance),
+      totalSpent: money(user.totalSpent),
+      totalEarned: 0,
+      memberLevel: calculateMemberLevelFromSettings(user.totalSpent, store.member_level_settings),
+      updatedAt: now(),
+    };
+    store.wallet_accounts.push(wallet);
+  }
+  return wallet;
+}
+
 export function getCurrentSession(): CustomerSession | null {
   const userId = getCurrentUserId();
   if (!userId) return null;
@@ -4466,6 +4486,101 @@ export function adminAdjustWallet(input: {
       description: `管理员调整：${input.reason.trim()}`,
     });
     addAdminLog(store, "wallet_adjust", "wallet", wallet.id, `${input.direction === "in" ? "增加" : "扣除"} ${amount} 洛克贝：${input.reason.trim()}`);
+    return wallet;
+  });
+}
+
+export function adminAdjustUserBalance(input: {
+  userId: string;
+  mode: "increase" | "decrease" | "set";
+  amount: number;
+  remark: string;
+}): WalletAccount {
+  requireAnyPermission(["users.adjust_balance", "finance.wallet.adjust"]);
+  return updateStore((store) => {
+    const user = store.users.find((item) => item.id === input.userId && item.role === "customer");
+    if (!user) throw new Error("用户不存在");
+    const amount = money(input.amount);
+    const remark = input.remark.trim();
+    if (!Number.isFinite(input.amount) || amount < 0) throw new Error("金额必须大于等于 0");
+    if (!remark) throw new Error("请填写备注");
+    if (remark.length > 200) throw new Error("备注最多 200 字");
+
+    const wallet = ensureCustomerWallet(store, user);
+    const before = money(wallet.availableBalance);
+    const after = money(input.mode === "set" ? amount : input.mode === "increase" ? before + amount : before - amount);
+    if (after < 0) throw new Error("调整后余额不能小于 0");
+    const delta = money(after - before);
+
+    wallet.availableBalance = after;
+    wallet.memberLevel = calculateMemberLevelFromSettings(wallet.totalSpent, store.member_level_settings);
+    wallet.updatedAt = now();
+    syncUserWallet(user, wallet);
+    user.updatedAt = now();
+
+    addLedger(store, {
+      userId: user.id,
+      type: "admin_adjust",
+      direction: delta >= 0 ? "in" : "out",
+      amount: Math.abs(delta),
+      beforeBalance: before,
+      afterBalance: after,
+      targetType: "customer",
+      relatedType: "wallet",
+      description: `管理员调整用户余额：${remark}`,
+    });
+
+    const session = readRawAdminSession();
+    const operator = session?.name ?? session?.username ?? "admin";
+    addAdminLog(
+      store,
+      "调整余额",
+      "用户管理",
+      user.id,
+      `操作模块：用户管理；操作类型：调整余额；用户ID：${user.id}；调整前金额：${formatRock(before)}；调整后金额：${formatRock(after)}；调整差额：${formatRock(delta)}；操作管理员：${operator}；备注：${remark}；操作时间：${formatTime(now())}`,
+      { operationAmount: delta, remark },
+    );
+    return wallet;
+  });
+}
+
+export function adminAdjustUserTotalSpent(input: {
+  userId: string;
+  mode: "increase" | "decrease" | "set";
+  amount: number;
+  remark?: string;
+}): WalletAccount {
+  requirePermission("users.edit");
+  return updateStore((store) => {
+    const user = store.users.find((item) => item.id === input.userId && item.role === "customer");
+    if (!user) throw new Error("用户不存在");
+    const amount = money(input.amount);
+    const remark = (input.remark ?? "").trim();
+    if (!Number.isFinite(input.amount) || amount < 0) throw new Error("金额必须大于等于 0");
+    if (remark.length > 200) throw new Error("备注最多 200 字");
+
+    const wallet = ensureCustomerWallet(store, user);
+    const before = money(wallet.totalSpent);
+    const after = money(input.mode === "set" ? amount : input.mode === "increase" ? before + amount : before - amount);
+    if (after < 0) throw new Error("调整后累计消费不能小于 0");
+    const delta = money(after - before);
+
+    wallet.totalSpent = after;
+    wallet.memberLevel = calculateMemberLevelFromSettings(after, store.member_level_settings);
+    wallet.updatedAt = now();
+    syncUserWallet(user, wallet);
+    user.updatedAt = now();
+
+    const session = readRawAdminSession();
+    const operator = session?.name ?? session?.username ?? "admin";
+    addAdminLog(
+      store,
+      "调整累计消费",
+      "用户管理",
+      user.id,
+      `操作模块：用户管理；操作类型：调整累计消费；用户ID：${user.id}；调整前金额：${formatRock(before)}；调整后金额：${formatRock(after)}；调整差额：${formatRock(delta)}；操作管理员：${operator}；备注：${remark || "无"}；操作时间：${formatTime(now())}`,
+      { operationAmount: delta, remark },
+    );
     return wallet;
   });
 }
