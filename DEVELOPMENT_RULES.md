@@ -142,9 +142,12 @@
 3. 投诉 / 反馈 / 售后 / 评价闭环已完成。
 4. 管理端权限与危险操作一致性已完成。
 5. 订单/钱包/退款/状态一致性已完成。
-6. 下一轮建议做“小问题清理与上线前检查”，包括 `/customer/must-read` 同步设置、旧提现页面文案统一、接单员钱包流水正负号显示、全站“打手”文案检查。
-7. 不要顺手接真实退款到账、真实提现、真实支付、短信、企业微信、COS/OSS 或 MongoDB。
-8. 不要重做设置、会员等级、投诉/反馈/售后/评价闭环、权限结构或订单状态机。
+6. 小问题清理与上线前检查已完成：`/customer/must-read` 已读取 `system_settings.order.mustReadContent`；`/admin/withdrawals` 已统一跳转到 `/admin/finance/withdrawals`；接单员钱包流水正负号已修复；UI 文案“打手”已清理为“接单员”。
+7. 服务器测试网已更新到 GitHub 最新 `main`，部署 commit 为 `d86a002 Clean up must-read withdrawals wallet ledger wording`；PM2 `xiaoluoke-web` online，三端公网和服务器本机 curl 均返回 200 OK。
+8. 下一轮建议做一个小功能：管理端用户详情页增加/完善“调整用户余额”和“调整累计消费金额”。
+9. 下一轮功能边界：不接真实支付、不接真实退款、不接 MongoDB、不新增独立 localStorage key，所有数据仍进入 `xiaoluoke_customer_mvp_store`，不破坏订单、钱包、退款、会员等级、权限结构，完成后必须运行 `npm run build`。
+10. 不要顺手接真实退款到账、真实提现、真实支付、短信、企业微信、COS/OSS 或 MongoDB。
+11. 不要重做设置、会员等级、投诉/反馈/售后/评价闭环、权限结构或订单状态机。
 
 ## 11. 文案与 UI 规则
 
@@ -162,3 +165,18 @@
 2. 不要删除用户已有文件。
 3. 不要使用 destructive git 命令。
 4. 腾讯云/Vercel 部署属于单独任务，不能夹带在功能开发中。
+
+## 13. 当前服务器测试网状态
+
+1. 服务器 IP：`43.134.164.29`
+2. 服务器项目路径：`~/xiaoluoke-esports-customer-mvp`
+3. PM2 进程：`xiaoluoke-web`
+4. 当前服务器已同步到 GitHub 最新 `main`。
+5. 当前部署 commit：`d86a002 Clean up must-read withdrawals wallet ledger wording`
+6. 服务器旧代码备份路径：`/home/ubuntu/xiaoluoke-server-backups/xiaoluoke-before-deploy-20260506-224824.tar.gz`
+7. `.env.production` 备份路径：`/home/ubuntu/xiaoluoke-server-backups/.env.production.backup.20260506-224824`
+8. `.env.production` 已保留为服务器项目目录中的未跟踪文件。
+9. 部署结果：`git reset --hard origin/main` 成功，`src/app/admin/login/page.tsx` 存在，服务器 `npm run build` 通过，生成 78/78 页面/API 路由，PM2 `xiaoluoke-web` online。
+10. 公网测试：`http://43.134.164.29/customer/home`、`http://43.134.164.29/worker/login`、`http://43.134.164.29/admin/login` 均返回 200 OK。
+11. 服务器本机测试：`http://127.0.0.1:3000/customer/home`、`http://127.0.0.1:3000/worker/login`、`http://127.0.0.1:3000/admin/login` 均返回 200 OK。
+12. 当前测试网仍是 localStorage/mock MVP，不同设备不会真正共享订单、钱包、聊天等业务数据。

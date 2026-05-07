@@ -1,12 +1,12 @@
 # 小洛克电竞模块状态表
 
-生成时间：2026-05-06  
+生成时间：2026-05-07  
 说明：本表基于当前对话上下文压缩后的记忆和代码扫描结果。状态为“部分完成”或“不确定”的模块，继续开发前必须重新阅读对应代码。
 
 | 模块 | 状态 | 当前确认 | 不确定 / 待补齐 |
 |---|---|---|---|
 | 项目基础结构 | 已完成 | Next.js App Router、React、Tailwind 项目结构存在，三端路由均在 `src/app` 下；本轮 `npm run build` 已通过并生成 78 个页面/API 路由。 | 需要持续确认后续修改后的 build 状态。 |
-| shared store / localStorage | 部分完成 | `src/lib/store.ts` 和 `src/lib/types.ts` 已包含主 store、session、三端大量业务函数；`system_settings` 已并入 `xiaoluoke_customer_mvp_store`；会员等级配置已新增 `member_level_settings` 并并入主 store；投诉 / 反馈 / 售后 / 评价闭环已新增并统一 `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews`。订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`，并已新增/迁移 `refundAmount`、`refundStatus`、`refundedAt`、`cancelledAt`、`refundRemark`。接单员已增加 `ratingAvg`、`reviewCount`。`xiaoluoke_admin_member_level_settings` 不再作为主要数据源，只作为旧数据迁移来源。 | 下一轮建议做小问题清理与上线前检查，继续确认是否还有散落占位或统计口径不一致。 |
+| shared store / localStorage | 部分完成 | `src/lib/store.ts` 和 `src/lib/types.ts` 已包含主 store、session、三端大量业务函数；`system_settings` 已并入 `xiaoluoke_customer_mvp_store`；会员等级配置已新增 `member_level_settings` 并并入主 store；投诉 / 反馈 / 售后 / 评价闭环已新增并统一 `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews`。订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`，并已新增/迁移 `refundAmount`、`refundStatus`、`refundedAt`、`cancelledAt`、`refundRemark`。接单员已增加 `ratingAvg`、`reviewCount`。`xiaoluoke_admin_member_level_settings` 不再作为主要数据源，只作为旧数据迁移来源。小问题清理与上线前检查已完成：`/customer/must-read` 已读取 `system_settings.order.mustReadContent`，`/admin/withdrawals` 已统一跳转到 `/admin/finance/withdrawals`，接单员钱包流水正负号已修复，UI 文案“打手”已清理为“接单员”。 | 当前仍是 localStorage/mock MVP，不同设备不会真正共享业务数据；后续如需跨设备互通必须另接后端数据源。 |
 | 顾客端首页/分类/商品 | 部分完成 | `/customer/home`、`/customer/categories`、`/customer/product/[id]` 存在。商品、分类、图片逻辑曾多次调整。 | 商品分类顺序、商品清单、下架分类联动需人工确认。 |
 | 顾客端下单/订单/详情 | 部分完成 | `/customer/order-confirm/[productId]`、`/customer/orders`、`/customer/order/[id]` 存在，store 有下单、结单、疑问逻辑；`/customer/order/[id]` 已接入反馈、投诉、售后、评价和处理进度。 | 仍建议做三端整体联动浏览器验证。 |
 | 顾客端充值 | 已完成 | `/customer/recharge` 存在，store 有 `validateRechargeAmount`、`rechargeCurrentCustomer`。 | 充值套餐是否已接入顾客端，需确认。 |
@@ -31,7 +31,7 @@
 | 管理端设置模块 | 已完成 / 待体验验证 | `/admin/settings/basic` 到 `/admin/settings/resources` 已新增或完善，统一写入 `StoreShape.system_settings`，保存设置写 `admin_logs`。 | 企业微信客服、公众号 H5、微信支付、提现、短信、资源上传仅预留接口和字段，不接真实服务。 |
 | 投诉 / 反馈 / 售后 / 评价 | 已完成 / 待体验验证 | `feedback_tickets`、`order_complaints`、`aftersale_orders`、`order_reviews` 已并入 `xiaoluoke_customer_mvp_store`；订单已增加 `complaintFlag`、`aftersaleFlag`、`reviewId`；`complaintFlag` / `aftersaleFlag` 已根据活跃记录计算，不再简单永远 true；售后 `resolved` 会做本地模拟退款并同步 `after_sale_refunded`。接单员已增加 `ratingAvg`、`reviewCount`。顾客端 `/customer/report`、`/customer/after-sale`、`/customer/order/[id]` 已接入反馈、投诉、售后、评价；接单员端 `/worker/home`、`/worker/messages`、`/worker/order/[id]` 已显示投诉、售后、评价提醒和状态；管理端 `/admin/feedback`、`/admin/disputes`、`/admin/feedback/reviews` 已可处理反馈、投诉、售后、评价管理。管理端处理动作已写入 `admin_logs`，所有新增和处理动作已触发 `xiaoluoke_store_updated`。 | 真实退款到账、真实客服、短信、微信支付、企业微信、COS/OSS 图片上传、复杂评价审核流仍为占位。 |
 | API 结构 | 部分完成 | `src/app/api` 下有 auth/customer API 占位，并新增企业微信客服、微信支付回调、接单员提现占位入口。 | 当前仍以 localStorage 为主，API 未接数据库，且不接真实第三方服务。 |
-| 部署文档/部署准备 | 部分完成 | 之前曾准备 Vercel/香港服务器部署说明。 | 当前请求未扫描 README 等部署文档，需后续单独确认。 |
+| 部署文档/部署准备 | 已完成 / 测试网已更新 | 服务器测试网已同步到 GitHub 最新 `main`，部署 commit 为 `d86a002 Clean up must-read withdrawals wallet ledger wording`。服务器 IP `43.134.164.29`，项目路径 `~/xiaoluoke-esports-customer-mvp`，PM2 进程 `xiaoluoke-web` online。旧服务器代码已备份到 `/home/ubuntu/xiaoluoke-server-backups/xiaoluoke-before-deploy-20260506-224824.tar.gz`，`.env.production` 已备份到 `/home/ubuntu/xiaoluoke-server-backups/.env.production.backup.20260506-224824` 并保留为未跟踪文件。`git reset --hard origin/main` 成功，`src/app/admin/login/page.tsx` 存在，服务器 `npm run build` 通过并生成 78/78 页面/API 路由。公网 `/customer/home`、`/worker/login`、`/admin/login` 均 200 OK；服务器本机 `127.0.0.1:3000` 三端入口均 200 OK。 | 当前只是测试网部署成功，不代表正式生产；业务数据仍在各设备浏览器 localStorage。 |
 | 文案规范 | 需要持续检查 | 本次 `rg` 未在 `src` 中发现“打手”关键词。 | 后续新增后台菜单时仍需禁止无关模块和“打手”文案。 |
 
 ## 当前优先模块完成状态
@@ -41,5 +41,7 @@
 3. 投诉 / 反馈 / 售后 / 评价闭环已完成。
 4. 管理端权限与危险操作一致性已完成。
 5. 订单/钱包/退款/状态一致性已完成。
-6. 最近一次 `npm run build` 已通过，生成 78 个页面/API 路由。
-7. 下一轮建议做“小问题清理与上线前检查”，包括 `/customer/must-read` 同步设置、旧提现页面文案统一、接单员钱包流水正负号显示、全站“打手”文案检查。
+6. 小问题清理与上线前检查已完成：`/customer/must-read` 已读取 `system_settings.order.mustReadContent`；`/admin/withdrawals` 已统一跳转到 `/admin/finance/withdrawals`；接单员钱包流水正负号已修复；UI 文案“打手”已清理为“接单员”。
+7. 服务器测试网已更新到 GitHub 最新 `main`，部署 commit `d86a002 Clean up must-read withdrawals wallet ledger wording`；PM2 `xiaoluoke-web` online，三端公网和本机 curl 均 200 OK。
+8. 最近一次本地和服务器 `npm run build` 均已通过，生成 78 个页面/API 路由。
+9. 下一轮建议做小功能：管理端用户详情页增加/完善“调整用户余额”和“调整累计消费金额”；边界是不接真实支付/退款/MongoDB、不新增独立 localStorage key，数据仍进入 `xiaoluoke_customer_mvp_store`，不破坏订单、钱包、退款、会员等级、权限结构。

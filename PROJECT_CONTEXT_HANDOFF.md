@@ -1,6 +1,6 @@
 # 小洛克电竞三端项目上下文交接文档
 
-生成时间：2026-05-06  
+生成时间：2026-05-07  
 项目路径：`/Users/chris/Documents/New project 2`
 
 ## 1. 当前边界
@@ -1012,17 +1012,18 @@
 1. `payment_records` 类型存在，但持久化数组未发现，当前应是 `buildPaymentRecords` 生成视图。
 2. 用户后续多次要求的 UI 微调是否全部完成，需要浏览器人工确认。
 3. 设置模块已并入共享 `system_settings`，会员等级配置已并入共享 `member_level_settings`，投诉 / 反馈 / 售后 / 评价闭环已并入主 store，订单/钱包/退款/状态一致性已完成，但企业微信客服、公众号 H5、微信支付、真实退款到账、提现、短信、资源上传仍是占位，不是真实服务。
-4. 腾讯云部署相关步骤曾讨论过，但当前文档任务不做部署操作。
+4. 服务器测试网已完成一次 GitHub 最新 `main` 部署；当前仍是 localStorage/mock MVP，不同设备之间不会共享业务数据。
 
 ## 13. 下一轮 Codex 优先检查清单
 
 1. 先运行 `npm run build`，确认当前代码可构建。
 2. 先读本文件和 `MODULE_STATUS.md`，不要凭记忆开发。
 3. 设置模块统一数据源已完成；会员等级配置并入 shared store 已完成；投诉 / 反馈 / 售后 / 评价闭环已完成；管理端权限与危险操作一致性已完成；订单/钱包/退款/状态一致性已完成。
-4. 下一轮建议做“小问题清理与上线前检查”，包括 `/customer/must-read` 同步设置、旧提现页面文案统一、接单员钱包流水正负号显示、全站“打手”文案检查。
+4. 小问题清理与上线前检查已完成：`/customer/must-read` 已读取 `system_settings.order.mustReadContent`；`/admin/withdrawals` 已统一跳转到 `/admin/finance/withdrawals`；接单员钱包流水正负号已修复；UI 文案“打手”已清理为“接单员”。
 5. 不要顺手接真实退款到账、真实财务提现打款、真实支付、短信、企业微信、COS/OSS 或 MongoDB。
 6. 不要在小问题清理时重做设置、会员等级、投诉/反馈/售后/评价闭环、权限结构或订单状态机。
-7. 改完任何模块必须跑 `npm run build`。
+7. 下一轮建议做一个小功能：管理端用户详情页增加/完善“调整用户余额”和“调整累计消费金额”。边界：不接真实支付、不接真实退款、不接 MongoDB、不新增独立 localStorage key，所有数据仍进入 `xiaoluoke_customer_mvp_store`，不破坏订单、钱包、退款、会员等级、权限结构，完成后必须跑 `npm run build`。
+8. 改完任何模块必须跑 `npm run build`。
 
 ## 14. 本轮完成：订单/钱包/退款/状态一致性
 
@@ -1041,3 +1042,52 @@
 11. Dashboard、订单统计、商品 GMV、订单 AOV、财务退款/未结算/支付退款统计口径已收紧。
 12. 真实微信/支付宝退款仍是占位；`payment_records` 未新增，支付记录仍由订单、充值、钱包流水派生。
 13. 本轮 `npm run build` 已通过，生成 78 个页面/API 路由。
+
+## 15. 本轮完成：小问题清理与上线前检查
+
+本轮只做上线前小问题清理与检查，没有接入真实支付、MongoDB、短信、企业微信或 COS/OSS。
+
+1. `/customer/must-read` 已读取 `system_settings.order.mustReadContent`。
+2. `/admin/withdrawals` 已统一跳转到 `/admin/finance/withdrawals`。
+3. 接单员钱包流水正负号已修复。
+4. UI 文案“打手”已清理为“接单员”。
+5. 本轮 `npm run build` 已通过，生成 78 个页面/API 路由。
+
+## 16. 服务器测试网部署状态
+
+服务器信息：
+
+1. 服务器 IP：`43.134.164.29`
+2. 服务器项目路径：`~/xiaoluoke-esports-customer-mvp`
+3. PM2 进程：`xiaoluoke-web`
+4. 当前服务器已同步到 GitHub 最新 `main`。
+5. 当前部署 commit：`d86a002 Clean up must-read withdrawals wallet ledger wording`
+
+备份信息：
+
+1. 服务器旧代码备份路径：`/home/ubuntu/xiaoluoke-server-backups/xiaoluoke-before-deploy-20260506-224824.tar.gz`
+2. `.env.production` 备份路径：`/home/ubuntu/xiaoluoke-server-backups/.env.production.backup.20260506-224824`
+3. `.env.production` 已保留为服务器项目目录中的未跟踪文件。
+
+部署结果：
+
+1. `git reset --hard origin/main` 成功。
+2. `src/app/admin/login` 已存在，包含 `page.tsx`。
+3. 服务器 `npm run build` 通过。
+4. 生成 78/78 页面/API 路由。
+5. PM2 `xiaoluoke-web` 状态为 `online`。
+6. 旧服务器代码已备份。
+
+三端公网测试结果：
+
+1. `http://43.134.164.29/customer/home`：200 OK
+2. `http://43.134.164.29/worker/login`：200 OK
+3. `http://43.134.164.29/admin/login`：200 OK
+
+三端服务器本机测试结果：
+
+1. `http://127.0.0.1:3000/customer/home`：200 OK
+2. `http://127.0.0.1:3000/worker/login`：200 OK
+3. `http://127.0.0.1:3000/admin/login`：200 OK
+
+注意：当前测试网只是公网可访问；业务数据仍存在每台设备浏览器的 `localStorage`，不同设备不会真正共享订单、钱包、聊天等业务数据。
